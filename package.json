@@ -1,0 +1,27 @@
+{
+  "name": "@soundxyz/response-cache",
+  "version": "1.0.0",
+  "main": "dist/index.js",
+  "type": "module",
+  "scripts": {
+    "prepack": "bob-ts -i src --no-sourcemap && tsc"
+  },
+  "keywords": [],
+  "author": "PabloSzx <pablosaez1995@gmail.com>",
+  "license": "MIT",
+  "devDependencies": {
+    "@envelop/core": "^2.1.0",
+    "@types/node": "^17.0.21",
+    "ava": "^4.1.0",
+    "bob-ts": "^3.1.0",
+    "c8": "^7.11.0",
+    "esbuild": "^0.14.25",
+    "graphql": "^16.3.0",
+    "ioredis": "^4.28.5",
+    "typescript": "^4.6.2"
+  },
+  "peerDependencies": {
+    "@envelop/core": "^2.1.0",
+    "ioredis": "^4.28.5"
+  }
+}
