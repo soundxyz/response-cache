@@ -12,14 +12,13 @@
   ],
   "license": "MIT",
   "author": "PabloSzx <pablosaez1995@gmail.com>",
-  "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "files": [
     "dist"
   ],
   "scripts": {
-    "prepack": "bob-ts -i src --no-sourcemap && tsc",
+    "prepack": "bob-ts -f cjs -i src --no-sourcemap && tsc",
     "release": "changeset publish"
   },
   "dependencies": {
