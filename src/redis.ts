@@ -1,4 +1,4 @@
-import type { Cache } from "@envelop/response-cache";
+import type { Cache } from "./plugin";
 import type Redis from "ioredis";
 import type RedLock from "redlock";
 import { Lock } from "redlock";
