@@ -1,15 +1,31 @@
 {
   "name": "@soundxyz/response-cache",
-  "version": "1.0.0",
-  "main": "dist/index.js",
-  "type": "module",
-  "scripts": {
-    "prepack": "bob-ts -i src --no-sourcemap && tsc"
-  },
-  "keywords": [],
-  "author": "PabloSzx <pablosaez1995@gmail.com>",
+  "version": "0.0.1",
+  "keywords": [
+    "envelop",
+    "graphql",
+    "api",
+    "redis",
+    "cache",
+    "sound.xyz",
+    "soundxyz"
+  ],
   "license": "MIT",
+  "author": "PabloSzx <pablosaez1995@gmail.com>",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "prepack": "bob-ts -i src --no-sourcemap && tsc",
+    "release": "changeset publish"
+  },
+  "dependencies": {
+    "@graphql-tools/utils": "^8.6.2",
+    "fast-json-stable-stringify": "^2.1.0",
+    "lru-cache": "^7.4.4"
+  },
   "devDependencies": {
+    "@changesets/cli": "^2.21.1",
     "@envelop/core": "^2.1.0",
     "@envelop/response-cache": "^2.1.0",
     "@graphql-ez/fastify": "^0.9.6",
@@ -34,10 +50,5 @@
     "@envelop/response-cache": "^2.1.0",
     "ioredis": "^4.28.5",
     "redlock": "^5.0.0-beta.2"
-  },
-  "dependencies": {
-    "@graphql-tools/utils": "^8.6.2",
-    "fast-json-stable-stringify": "^2.1.0",
-    "lru-cache": "^7.4.4"
   }
 }
