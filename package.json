@@ -18,8 +18,9 @@
     "dist"
   ],
   "scripts": {
-    "prepack": "bob-ts -f cjs -i src --no-sourcemap && tsc",
-    "release": "changeset publish"
+    "prepack": "bob-ts -f cjs -i src --no-sourcemap && tsc -p tsconfig.build.json",
+    "release": "changeset publish",
+    "test": "ava"
   },
   "dependencies": {
     "@graphql-tools/utils": "^8.6.2",
@@ -31,6 +32,7 @@
     "@envelop/core": "^2.1.0",
     "@graphql-ez/fastify": "^0.9.6",
     "@graphql-ez/fastify-testing": "^0.1.6",
+    "@graphql-tools/schema": "^8.3.2",
     "@types/ioredis": "^4.28.8",
     "@types/lru-cache": "^7.4.0",
     "@types/node": "^17.0.21",
