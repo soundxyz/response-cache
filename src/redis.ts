@@ -1,5 +1,7 @@
 import type { Cache } from "@envelop/response-cache";
-import Redis from "ioredis";
+import type Redis from "ioredis";
+import type RedLock from "redlock";
+import { Lock } from "redlock";
 
 export type BuildRedisEntityId = (typename: string, id: number | string) => string;
 export type BuildRedisOperationResultCacheKey = (responseId: string) => string;
@@ -10,6 +12,10 @@ export type RedisCacheParameter = {
    * @see Redis.Redis https://github.com/luin/ioredis
    */
   redis: Redis.Redis;
+  /**
+   * Redlock instance
+   */
+  redlock: RedLock;
   /**
    * Customize how the cache entity id is built.
    * By default the typename is concatenated with the id e.g. `User:1`
@@ -24,6 +30,7 @@ export type RedisCacheParameter = {
 
 export const createRedisCache = (params: RedisCacheParameter): Cache => {
   const store = params.redis;
+  const redLock = params.redlock;
 
   const buildRedisEntityId = params?.buildRedisEntityId ?? defaultBuildRedisEntityId;
   const buildRedisOperationResultCacheKey =
@@ -61,6 +68,8 @@ export const createRedisCache = (params: RedisCacheParameter): Cache => {
     return keysToInvalidate;
   }
 
+  const responseIdLocks: Record<string, Lock> = {};
+
   return {
     async set(responseId, result, collectedEntities, ttl) {
       const pipeline = store.pipeline();
@@ -90,11 +99,51 @@ export const createRedisCache = (params: RedisCacheParameter): Cache => {
       }
 
       await pipeline.exec();
+
+      const lock = responseIdLocks[responseId];
+
+      if (!lock) {
+        console.warn(`Lock for ${responseId} could not be found!`);
+      } else {
+        await lock
+          .release()
+          .catch(console.error)
+          .finally(() => {
+            delete responseIdLocks[responseId];
+          });
+      }
     },
     async get(responseId) {
-      const result = await store.get(responseId);
+      const firstTry = await store.get(responseId);
 
-      return result && JSON.parse(result);
+      if (firstTry) return JSON.parse(firstTry);
+
+      const lock = await redLock
+        .acquire(["lock:" + responseId], 5000, {
+          retryCount: (5000 / 100) * 2,
+          retryDelay: 100,
+        })
+        .then(
+          (lock) => (responseIdLocks[responseId] = lock),
+          (err) => {
+            console.error(err);
+            return null;
+          }
+        );
+
+      // Any lock that took more than 1 attempt should be released right-away
+      if (lock && lock.attempts.length > 1) {
+        await lock
+          .release()
+          .catch(console.error)
+          .finally(() => {
+            delete responseIdLocks[responseId];
+          });
+      }
+
+      const secondTry = await store.get(responseId);
+
+      return secondTry && JSON.parse(secondTry);
     },
     async invalidate(entitiesToRemove) {
       const invalidationKeys: string[][] = [];
