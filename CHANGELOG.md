@@ -1,5 +1,11 @@
 # @soundxyz/response-cache
 
+## 0.1.2
+
+### Patch Changes
+
+- 5a345ee: esm->cjs
+
 ## 0.1.1
 
 ### Patch Changes
