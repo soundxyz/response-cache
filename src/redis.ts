@@ -15,7 +15,7 @@ export type RedisCacheParameter = {
   /**
    * Redlock instance
    */
-  redlock: RedLock;
+  redLock: RedLock;
   /**
    * Customize how the cache entity id is built.
    * By default the typename is concatenated with the id e.g. `User:1`
@@ -30,7 +30,7 @@ export type RedisCacheParameter = {
 
 export const createRedisCache = (params: RedisCacheParameter): Cache => {
   const store = params.redis;
-  const redLock = params.redlock;
+  const redLock = params.redLock;
 
   const buildRedisEntityId = params?.buildRedisEntityId ?? defaultBuildRedisEntityId;
   const buildRedisOperationResultCacheKey =
