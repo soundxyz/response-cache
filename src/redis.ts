@@ -70,6 +70,18 @@ export const createRedisCache = (params: RedisCacheParameter): Cache => {
 
   const responseIdLocks: Record<string, Lock> = {};
 
+  const ConcurrentLoadingCache: Record<string, Promise<unknown>> = {};
+
+  function ConcurrentCachedCall<T>(key: string, cb: () => Promise<T>) {
+    const concurrentLoadingValueCache = ConcurrentLoadingCache[key];
+
+    if (concurrentLoadingValueCache) return concurrentLoadingValueCache as Promise<Awaited<T>>;
+
+    return (ConcurrentLoadingCache[key] = cb()).finally(() => {
+      delete ConcurrentLoadingCache[key];
+    }) as Promise<Awaited<T>>;
+  }
+
   return {
     async set(responseId, result, collectedEntities, ttl) {
       const pipeline = store.pipeline();
@@ -113,37 +125,39 @@ export const createRedisCache = (params: RedisCacheParameter): Cache => {
           });
       }
     },
-    async get(responseId) {
-      const firstTry = await store.get(responseId);
+    get(responseId) {
+      return ConcurrentCachedCall(responseId, async () => {
+        const firstTry = await store.get(responseId);
 
-      if (firstTry) return JSON.parse(firstTry);
+        if (firstTry) return JSON.parse(firstTry);
 
-      const lock = await redLock
-        .acquire(["lock:" + responseId], 5000, {
-          retryCount: (5000 / 100) * 2,
-          retryDelay: 100,
-        })
-        .then(
-          (lock) => (responseIdLocks[responseId] = lock),
-          (err) => {
-            console.error(err);
-            return null;
-          }
-        );
+        const lock = await redLock
+          .acquire(["lock:" + responseId], 5000, {
+            retryCount: (5000 / 100) * 2,
+            retryDelay: 100,
+          })
+          .then(
+            (lock) => (responseIdLocks[responseId] = lock),
+            (err) => {
+              console.error(err);
+              return null;
+            }
+          );
 
-      // Any lock that took more than 1 attempt should be released right-away
-      if (lock && lock.attempts.length > 1) {
-        await lock
-          .release()
-          .catch(console.error)
-          .finally(() => {
-            delete responseIdLocks[responseId];
-          });
-      }
+        // Any lock that took more than 1 attempt should be released right-away
+        if (lock && lock.attempts.length > 1) {
+          await lock
+            .release()
+            .catch(console.error)
+            .finally(() => {
+              delete responseIdLocks[responseId];
+            });
+        }
 
-      const secondTry = await store.get(responseId);
+        const secondTry = await store.get(responseId);
 
-      return secondTry && JSON.parse(secondTry);
+        return secondTry && JSON.parse(secondTry);
+      });
     },
     async invalidate(entitiesToRemove) {
       const invalidationKeys: string[][] = [];
