@@ -27,7 +27,7 @@ export type RedisCacheParameter = {
    */
   buildRedisOperationResultCacheKey?: BuildRedisOperationResultCacheKey;
 
-  lockSettings: Settings;
+  lockSettings: Partial<Settings>;
   lockDuration: number;
 };
 
