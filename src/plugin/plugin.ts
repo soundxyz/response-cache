@@ -14,7 +14,6 @@ import {
 } from "graphql";
 import jsonStableStringify from "fast-json-stable-stringify";
 import type { Cache, CacheEntityRecord } from "./cache";
-import { createInMemoryCache } from "./in-memory-cache";
 import { hashSHA256 } from "./hashSHA256";
 
 const contextSymbol = Symbol("responseCache");
@@ -49,7 +48,7 @@ export type GetDocumentStringFromContextFunction = (params: DefaultContext) => M
 export type ShouldCacheResultFunction = (params: { result: ExecutionResult }) => Boolean;
 
 export type UseResponseCacheParameter<C = any> = {
-  cache?: Cache;
+  cache: Cache;
   /**
    * Maximum age in ms. Defaults to `Infinity`. Set it to 0 for disabling the global TTL.
    */
@@ -158,7 +157,7 @@ export const defaultGetDocumentStringFromContext: GetDocumentStringFromContextFu
 ) => context[rawDocumentStringSymbol as any] as any;
 
 export function useResponseCache({
-  cache = createInMemoryCache(),
+  cache,
   ttl: globalTtl = Infinity,
   session = () => null,
   enabled,
@@ -174,7 +173,7 @@ export function useResponseCache({
   includeExtensionMetadata = typeof process !== "undefined"
     ? process.env["NODE_ENV"] === "development"
     : false,
-}: UseResponseCacheParameter = {}): Plugin {
+}: UseResponseCacheParameter): Plugin<any> {
   const ignoredTypesMap = new Set<string>(ignoredTypes);
   const schemaCache = new WeakMap<GraphQLSchema, GraphQLSchema>();
 
@@ -297,6 +296,10 @@ export function useResponseCache({
           });
 
           const cachedResponse = await cache.get(operationId);
+
+          console.log({
+            cachedResponse,
+          });
 
           if (cachedResponse != null) {
             if (includeExtensionMetadata) {

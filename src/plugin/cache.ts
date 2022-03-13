@@ -1,5 +1,5 @@
-import type { Maybe, PromiseOrValue } from '@envelop/core';
-import type { ExecutionResult } from 'graphql';
+import type { Maybe, PromiseOrValue } from "@envelop/core";
+import type { ExecutionResult } from "graphql";
 
 export type CacheEntityRecord = {
   typename: string;
