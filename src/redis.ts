@@ -85,12 +85,6 @@ export const createRedisCache = (params: RedisCacheParameter): Cache => {
 
   return {
     async set(responseId, result, collectedEntities, ttl) {
-      console.log({
-        responseId,
-        result,
-        collectedEntities,
-        ttl,
-      });
       const pipeline = store.pipeline();
 
       if (ttl === Infinity) {
@@ -124,7 +118,6 @@ export const createRedisCache = (params: RedisCacheParameter): Cache => {
       if (!lock) {
         console.warn(`Lock for ${responseId} could not be found!`);
       } else {
-        console.log(`Releasing lock!`);
         await lock
           .release()
           .catch(console.error)
@@ -137,9 +130,6 @@ export const createRedisCache = (params: RedisCacheParameter): Cache => {
       return ConcurrentCachedCall(responseId, async () => {
         const firstTry = await store.get(responseId);
 
-        console.log({
-          firstTry,
-        });
         if (firstTry) return JSON.parse(firstTry);
 
         const lock = await redLock
@@ -155,10 +145,8 @@ export const createRedisCache = (params: RedisCacheParameter): Cache => {
             }
           );
 
-        console.log("lock attempts", lock?.attempts.length);
         // Any lock that took more than 1 attempt should be released right-away
         if (lock && lock.attempts.length > 1) {
-          console.log("releasing lock for readers");
           await lock
             .release()
             .catch(console.error)
@@ -168,10 +156,6 @@ export const createRedisCache = (params: RedisCacheParameter): Cache => {
         }
 
         const secondTry = await store.get(responseId);
-
-        console.log({
-          secondTry,
-        });
 
         return secondTry && JSON.parse(secondTry);
       });

@@ -297,10 +297,6 @@ export function useResponseCache({
 
           const cachedResponse = await cache.get(operationId);
 
-          console.log({
-            cachedResponse,
-          });
-
           if (cachedResponse != null) {
             if (includeExtensionMetadata) {
               ctx.setResultAndStopExecution({
