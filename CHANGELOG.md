@@ -1,5 +1,11 @@
 # @soundxyz/response-cache
 
+## 0.2.2
+
+### Patch Changes
+
+- 05b8a9e: Improve concurrent get logic
+
 ## 0.2.1
 
 ### Patch Changes
