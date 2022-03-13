@@ -1,5 +1,11 @@
 # @soundxyz/response-cache
 
+## 0.2.1
+
+### Patch Changes
+
+- ac6ed51: fix partial lock settings
+
 ## 0.2.0
 
 ### Minor Changes
