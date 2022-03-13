@@ -138,7 +138,13 @@ export const createRedisCache = (params: RedisCacheParameter): Cache => {
             retryDelay: 100,
           })
           .then(
-            (lock) => (responseIdLocks[responseId] = lock),
+            (lock) => {
+              if (lock.attempts.length === 1) {
+                return (responseIdLocks[responseId] = lock);
+              }
+
+              return lock;
+            },
             (err) => {
               console.error(err);
               return null;
@@ -147,12 +153,7 @@ export const createRedisCache = (params: RedisCacheParameter): Cache => {
 
         // Any lock that took more than 1 attempt should be released right-away
         if (lock && lock.attempts.length > 1) {
-          await lock
-            .release()
-            .catch(console.error)
-            .finally(() => {
-              delete responseIdLocks[responseId];
-            });
+          await lock.release().catch(console.error);
         }
 
         const secondTry = await store.get(responseId);
