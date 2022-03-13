@@ -23,6 +23,11 @@ const createCachePlugin = () =>
     cache: createRedisCache({
       redLock,
       redis,
+      lockDuration: 5000,
+      lockSettings: {
+        retryCount: (5000 / 100) * 2,
+        retryDelay: 100,
+      },
     }),
   });
 
@@ -68,21 +73,28 @@ test.before(async () => {
 test.after.always(GlobalTeardown);
 
 test("hello", async (t) => {
+  const sharedCachePlugin = createCachePlugin();
+  const clientsAmount = 10;
+  const repeatQueryAmount = 100;
   const data = await Promise.all(
-    new Array(10).fill(0).map(async (_, _index) => {
-      const testClient = await TestClient(createCachePlugin());
+    new Array(clientsAmount).fill(0).map(async (_, index) => {
+      const testClient = await TestClient(index > 5 ? sharedCachePlugin : createCachePlugin());
 
-      return Promise.all([
-        testClient.assertedQuery<{ hello: string }>("{hello}"),
-        testClient.assertedQuery<{ hello: string }>("{hello}"),
-        testClient.assertedQuery<{ hello: string }>("{hello}"),
-      ]);
+      return Promise.all(
+        new Array(repeatQueryAmount)
+          .fill(0)
+          .map(() => testClient.assertedQuery<{ hello: string }>("{hello}"))
+      );
     })
   );
 
-  t.is(data.length, 10);
+  t.is(data.length, clientsAmount);
 
-  t.true(data.every((v) => v.every((val) => val.hello === "Hello World!")));
+  t.true(
+    data.every(
+      (v) => v.length === repeatQueryAmount && v.every((val) => val.hello === "Hello World!")
+    )
+  );
 
   t.is(expensiveCallAmount, 1);
 });
