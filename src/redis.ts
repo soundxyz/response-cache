@@ -1,7 +1,7 @@
 import type { Cache } from "./plugin";
 import type Redis from "ioredis";
 import type RedLock from "redlock";
-import { Lock } from "redlock";
+import { Lock, Settings } from "redlock";
 
 export type BuildRedisEntityId = (typename: string, id: number | string) => string;
 export type BuildRedisOperationResultCacheKey = (responseId: string) => string;
@@ -26,11 +26,16 @@ export type RedisCacheParameter = {
    * By default `operations` is concatenated with the responseId e.g. `operations:arZm3tCKgGmpu+a5slrpSH9vjSQ=`
    */
   buildRedisOperationResultCacheKey?: BuildRedisOperationResultCacheKey;
+
+  lockSettings: Settings;
+  lockDuration: number;
 };
 
 export const createRedisCache = (params: RedisCacheParameter): Cache => {
   const store = params.redis;
   const redLock = params.redLock;
+  const lockSettings = params.lockSettings;
+  const lockDuration = params.lockDuration;
 
   const buildRedisEntityId = params?.buildRedisEntityId ?? defaultBuildRedisEntityId;
   const buildRedisOperationResultCacheKey =
@@ -132,24 +137,19 @@ export const createRedisCache = (params: RedisCacheParameter): Cache => {
 
         if (firstTry) return JSON.parse(firstTry);
 
-        const lock = await redLock
-          .acquire(["lock:" + responseId], 5000, {
-            retryCount: (5000 / 100) * 2,
-            retryDelay: 100,
-          })
-          .then(
-            (lock) => {
-              if (lock.attempts.length === 1) {
-                return (responseIdLocks[responseId] = lock);
-              }
-
-              return lock;
-            },
-            (err) => {
-              console.error(err);
-              return null;
+        const lock = await redLock.acquire(["lock:" + responseId], lockDuration, lockSettings).then(
+          (lock) => {
+            if (lock.attempts.length === 1) {
+              return (responseIdLocks[responseId] = lock);
             }
-          );
+
+            return lock;
+          },
+          (err) => {
+            console.error(err);
+            return null;
+          }
+        );
 
         // Any lock that took more than 1 attempt should be released right-away
         if (lock && lock.attempts.length > 1) {
