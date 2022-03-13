@@ -16,6 +16,8 @@ inspect.defaultOptions.depth = Infinity;
 let redis: IORedis.Redis;
 let redLock: RedLock;
 
+let expensiveCallAmount = 0;
+
 const createCachePlugin = () =>
   useResponseCache({
     cache: createRedisCache({
@@ -43,6 +45,7 @@ function TestClient(cachePlugin: Plugin) {
         Query: {
           async hello() {
             console.log("---EXPENSIVE CALL!!---");
+            ++expensiveCallAmount;
             await setTimeout(1000);
             return "Hello World!";
           },
@@ -69,19 +72,17 @@ test("hello", async (t) => {
     new Array(10).fill(0).map(async (_, _index) => {
       const testClient = await TestClient(createCachePlugin());
 
-      const result = await Promise.all([
-        testClient.assertedQuery("{hello}"),
-        testClient.assertedQuery("{hello}"),
-        testClient.assertedQuery("{hello}"),
+      return Promise.all([
+        testClient.assertedQuery<{ hello: string }>("{hello}"),
+        testClient.assertedQuery<{ hello: string }>("{hello}"),
+        testClient.assertedQuery<{ hello: string }>("{hello}"),
       ]);
-
-      return result;
     })
   );
 
-  console.log({
-    data,
-  });
+  t.is(data.length, 10);
 
-  t.truthy(data);
+  t.true(data.every((v) => v.every((val) => val.hello === "Hello World!")));
+
+  t.is(expensiveCallAmount, 1);
 });
