@@ -1,5 +1,11 @@
 # @soundxyz/response-cache
 
+## 0.2.0
+
+### Minor Changes
+
+- d8724fb: allow customize lock settings
+
 ## 0.1.3
 
 ### Patch Changes
