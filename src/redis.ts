@@ -88,6 +88,16 @@ export const createRedisCache = (params: RedisCacheParameter): Cache => {
     }) as Promise<Awaited<T>>;
   }
 
+  function getFromRedis(responseId: string) {
+    return ConcurrentCachedCall(responseId, async () => {
+      const result = await store.get(responseId);
+
+      if (result != null) return JSON.parse(result);
+
+      return null;
+    });
+  }
+
   return {
     async set(responseId, result, collectedEntities, ttl) {
       const pipeline = store.pipeline();
@@ -131,35 +141,31 @@ export const createRedisCache = (params: RedisCacheParameter): Cache => {
           });
       }
     },
-    get(responseId) {
-      return ConcurrentCachedCall(responseId, async () => {
-        const firstTry = await store.get(responseId);
+    async get(responseId) {
+      const firstTry = await getFromRedis(responseId);
 
-        if (firstTry) return JSON.parse(firstTry);
+      if (firstTry) return firstTry;
 
-        const lock = await redLock.acquire(["lock:" + responseId], lockDuration, lockSettings).then(
-          (lock) => {
-            if (lock.attempts.length === 1) {
-              return (responseIdLocks[responseId] = lock);
-            }
-
-            return lock;
-          },
-          (err) => {
-            console.error(err);
-            return null;
+      const lock = await redLock.acquire(["lock:" + responseId], lockDuration, lockSettings).then(
+        (lock) => {
+          if (lock.attempts.length === 1) {
+            return (responseIdLocks[responseId] = lock);
           }
-        );
 
-        // Any lock that took more than 1 attempt should be released right-away
-        if (lock && lock.attempts.length > 1) {
-          await lock.release().catch(console.error);
+          return lock;
+        },
+        (err) => {
+          console.error(err);
+          return null;
         }
+      );
 
-        const secondTry = await store.get(responseId);
+      // Any lock that took more than 1 attempt should be released right away for the other readers
+      if (lock && lock.attempts.length > 1) lock.release().catch(console.error);
+      // If the lock was first attempt, skip the second get try, and go right to execute
+      else if (lock?.attempts.length === 1) return null;
 
-        return secondTry && JSON.parse(secondTry);
-      });
+      return getFromRedis(responseId);
     },
     async invalidate(entitiesToRemove) {
       const invalidationKeys: string[][] = [];
