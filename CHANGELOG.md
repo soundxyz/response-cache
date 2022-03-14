@@ -1,5 +1,11 @@
 # @soundxyz/response-cache
 
+## 0.2.4
+
+### Patch Changes
+
+- 7d3da9e: If redis fails on get, skip lock logic
+
 ## 0.2.3
 
 ### Patch Changes
