@@ -31,6 +31,11 @@ export type RedisCacheParameter = {
   lockDuration: number;
 };
 
+function gracefullyFail(err: unknown) {
+  console.error(err);
+  return null;
+}
+
 export const createRedisCache = (params: RedisCacheParameter): Cache => {
   const store = params.redis;
   const redLock = params.redLock;
@@ -45,25 +50,27 @@ export const createRedisCache = (params: RedisCacheParameter): Cache => {
     const keysToInvalidate: string[] = [entity];
 
     // find the responseIds for the entity
-    const responseIds = await store.smembers(entity);
+    const responseIds = await store.smembers(entity).catch(gracefullyFail);
     // and add each response to be invalidated since they contained the entity data
-    responseIds.forEach((responseId) => {
-      keysToInvalidate.push(responseId);
-      keysToInvalidate.push(buildRedisOperationResultCacheKey(responseId));
-    });
+    responseIds &&
+      responseIds.forEach((responseId) => {
+        keysToInvalidate.push(responseId);
+        keysToInvalidate.push(buildRedisOperationResultCacheKey(responseId));
+      });
 
     // if invalidating an entity like Comment, then also invalidate Comment:1, Comment:2, etc
     if (!entity.includes(":")) {
-      const entityKeys = await store.keys(`${entity}:*`);
-      for (const entityKey of entityKeys) {
+      const entityKeys = await store.keys(`${entity}:*`).catch(gracefullyFail);
+      for (const entityKey of entityKeys || []) {
         // and invalidate any responses in each of those entity keys
-        const entityResponseIds = await store.smembers(entityKey);
+        const entityResponseIds = await store.smembers(entityKey).catch(gracefullyFail);
         // if invalidating an entity check for associated operations containing that entity
         // and invalidate each response since they contained the entity data
-        entityResponseIds.forEach((responseId) => {
-          keysToInvalidate.push(responseId);
-          keysToInvalidate.push(buildRedisOperationResultCacheKey(responseId));
-        });
+        entityResponseIds &&
+          entityResponseIds.forEach((responseId) => {
+            keysToInvalidate.push(responseId);
+            keysToInvalidate.push(buildRedisOperationResultCacheKey(responseId));
+          });
 
         // then the entityKeys like Comment:1, Comment:2 etc to be invalidated
         keysToInvalidate.push(entityKey);
@@ -90,7 +97,7 @@ export const createRedisCache = (params: RedisCacheParameter): Cache => {
 
   function getFromRedis(responseId: string) {
     return ConcurrentCachedCall(responseId, async () => {
-      const result = await store.get(responseId);
+      const result = await store.get(responseId).catch(gracefullyFail);
 
       if (result != null) return JSON.parse(result);
 
@@ -100,33 +107,37 @@ export const createRedisCache = (params: RedisCacheParameter): Cache => {
 
   return {
     async set(responseId, result, collectedEntities, ttl) {
-      const pipeline = store.pipeline();
+      try {
+        const pipeline = store.pipeline();
 
-      if (ttl === Infinity) {
-        pipeline.set(responseId, JSON.stringify(result));
-      } else {
-        // set the ttl in milliseconds
-        pipeline.set(responseId, JSON.stringify(result), "PX", ttl);
-      }
-
-      const responseKey = buildRedisOperationResultCacheKey(responseId);
-
-      for (const { typename, id } of collectedEntities) {
-        // Adds a key for the typename => response
-        pipeline.sadd(typename, responseId);
-        // Adds a key for the operation => typename
-        pipeline.sadd(responseKey, typename);
-
-        if (id) {
-          const entityId = buildRedisEntityId(typename, id);
-          // Adds a key for the typename:id => response
-          pipeline.sadd(entityId, responseId);
-          // Adds a key for the operation => typename:id
-          pipeline.sadd(responseKey, entityId);
+        if (ttl === Infinity) {
+          pipeline.set(responseId, JSON.stringify(result));
+        } else {
+          // set the ttl in milliseconds
+          pipeline.set(responseId, JSON.stringify(result), "PX", ttl);
         }
-      }
 
-      await pipeline.exec();
+        const responseKey = buildRedisOperationResultCacheKey(responseId);
+
+        for (const { typename, id } of collectedEntities) {
+          // Adds a key for the typename => response
+          pipeline.sadd(typename, responseId);
+          // Adds a key for the operation => typename
+          pipeline.sadd(responseKey, typename);
+
+          if (id) {
+            const entityId = buildRedisEntityId(typename, id);
+            // Adds a key for the typename:id => response
+            pipeline.sadd(entityId, responseId);
+            // Adds a key for the operation => typename:id
+            pipeline.sadd(responseKey, entityId);
+          }
+        }
+
+        await pipeline.exec().catch(gracefullyFail);
+      } catch (err) {
+        console.error(err);
+      }
 
       const lock = responseIdLocks[responseId];
 
@@ -180,7 +191,7 @@ export const createRedisCache = (params: RedisCacheParameter): Cache => {
 
       const keys = invalidationKeys.flat();
       if (keys.length > 0) {
-        await store.del(keys);
+        await store.del(keys).catch(gracefullyFail);
       }
     },
   };
