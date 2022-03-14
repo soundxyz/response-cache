@@ -1,5 +1,11 @@
 # @soundxyz/response-cache
 
+## 0.2.3
+
+### Patch Changes
+
+- 48df81a: Redis usage gracefully fails
+
 ## 0.2.2
 
 ### Patch Changes
