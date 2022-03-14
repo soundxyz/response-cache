@@ -97,11 +97,15 @@ export const createRedisCache = (params: RedisCacheParameter): Cache => {
 
   function getFromRedis(responseId: string) {
     return ConcurrentCachedCall(responseId, async () => {
-      const result = await store.get(responseId).catch(gracefullyFail);
+      let ok = true;
+      const result = await store.get(responseId).catch((err) => {
+        ok = false;
+        return gracefullyFail(err);
+      });
 
-      if (result != null) return JSON.parse(result);
+      if (result != null) return [JSON.parse(result), ok] as const;
 
-      return null;
+      return [null, ok] as const;
     });
   }
 
@@ -153,7 +157,9 @@ export const createRedisCache = (params: RedisCacheParameter): Cache => {
       }
     },
     async get(responseId) {
-      const firstTry = await getFromRedis(responseId);
+      const [firstTry, redisOk] = await getFromRedis(responseId);
+
+      if (!redisOk) return null;
 
       if (firstTry) return firstTry;
 
@@ -176,7 +182,7 @@ export const createRedisCache = (params: RedisCacheParameter): Cache => {
       // If the lock was first attempt, skip the second get try, and go right to execute
       else if (lock?.attempts.length === 1) return null;
 
-      return getFromRedis(responseId);
+      return getFromRedis(responseId).then((v) => v[0]);
     },
     async invalidate(entitiesToRemove) {
       const invalidationKeys: string[][] = [];
