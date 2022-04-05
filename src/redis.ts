@@ -15,7 +15,7 @@ export type RedisCacheParameter = {
   /**
    * Redlock instance
    */
-  redLock: RedLock;
+  redLock: RedLock | null;
   /**
    * Customize how the cache entity id is built.
    * By default the typename is concatenated with the id e.g. `User:1`
@@ -145,7 +145,7 @@ export const createRedisCache = (params: RedisCacheParameter): Cache => {
 
       const lock = responseIdLocks[responseId];
 
-      if (!lock) {
+      if (redLock && !lock) {
         console.warn(`Lock for ${responseId} could not be found!`);
       } else {
         await lock
@@ -163,7 +163,7 @@ export const createRedisCache = (params: RedisCacheParameter): Cache => {
 
       if (firstTry) return firstTry;
 
-      const lock = await redLock.acquire(["lock:" + responseId], lockDuration, lockSettings).then(
+      const lock = await redLock?.acquire(["lock:" + responseId], lockDuration, lockSettings).then(
         (lock) => {
           if (lock.attempts.length === 1) {
             return (responseIdLocks[responseId] = lock);
