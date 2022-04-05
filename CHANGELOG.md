@@ -1,5 +1,11 @@
 # @soundxyz/response-cache
 
+## 0.2.5
+
+### Patch Changes
+
+- b438abe: Skip redlock functionality
+
 ## 0.2.4
 
 ### Patch Changes
