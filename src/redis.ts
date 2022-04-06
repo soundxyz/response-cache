@@ -145,8 +145,8 @@ export const createRedisCache = (params: RedisCacheParameter): Cache => {
 
       const lock = responseIdLocks[responseId];
 
-      if (redLock && !lock) {
-        console.warn(`Lock for ${responseId} could not be found!`);
+      if (!lock) {
+        redLock && console.warn(`Lock for ${responseId} could not be found!`);
       } else {
         await lock
           .release()
