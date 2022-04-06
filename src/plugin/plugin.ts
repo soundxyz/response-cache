@@ -431,7 +431,7 @@ function applyResponseCacheLogic(
                 ctx.identifier.set(`${typename}:${id}`, { typename, id });
                 ctx.types.add(typename);
                 if (typename in ctx.ttlPerType) {
-                  ctx.currentTtl = calculateTtl(ctx.ttlPerType[typename], ctx.currentTtl);
+                  ctx.currentTtl = calculateTtl(ctx.ttlPerType[typename]!, ctx.currentTtl);
                 }
               }
             });
