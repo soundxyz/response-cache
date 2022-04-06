@@ -1,5 +1,11 @@
 # @soundxyz/response-cache
 
+## 0.2.6
+
+### Patch Changes
+
+- fb69f77: Fix redLock check
+
 ## 0.2.5
 
 ### Patch Changes
