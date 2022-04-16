@@ -81,8 +81,8 @@ export const createRedisCache = (params: RedisCacheParameter): Cache => {
     return keysToInvalidate;
   }
 
-  const responseIdLocks: Record<string, Lock> = {};
-  const ConcurrentLoadingCache: Record<string, Promise<unknown>> = {};
+  const responseIdLocks: Record<string, Lock | null> = {};
+  const ConcurrentLoadingCache: Record<string, Promise<unknown> | null> = {};
 
   function ConcurrentCachedCall<T>(key: string, cb: () => Promise<T>) {
     const concurrentLoadingValueCache = ConcurrentLoadingCache[key];
@@ -92,7 +92,7 @@ export const createRedisCache = (params: RedisCacheParameter): Cache => {
     }
 
     return (ConcurrentLoadingCache[key] = cb()).finally(() => {
-      delete ConcurrentLoadingCache[key];
+      ConcurrentLoadingCache[key] = null;
     }) as Promise<Awaited<T>>;
   }
 
@@ -111,6 +111,14 @@ export const createRedisCache = (params: RedisCacheParameter): Cache => {
   }
 
   return {
+    onSkipCache(responseId) {
+      const lock = responseIdLocks[responseId];
+
+      if (lock) {
+        lock.release().catch(console.error);
+        responseIdLocks[responseId] = null;
+      }
+    },
     async set(responseId, result, collectedEntities, ttl) {
       try {
         const pipeline = store.pipeline();
@@ -146,16 +154,10 @@ export const createRedisCache = (params: RedisCacheParameter): Cache => {
 
       const lock = responseIdLocks[responseId];
 
-      if (!lock) {
-        redLock && console.warn(`Lock for ${responseId} could not be found!`);
-      } else {
-        await lock
-          .release()
-          .catch(console.error)
-          .finally(() => {
-            delete responseIdLocks[responseId];
-          });
-      }
+      if (!lock) return;
+
+      lock.release().catch(console.error);
+      responseIdLocks[responseId] = null;
     },
     async get(responseId) {
       const [firstTry, redisOk] = await getFromRedis(responseId);
