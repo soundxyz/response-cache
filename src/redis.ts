@@ -51,12 +51,12 @@ export const createRedisCache = (params: RedisCacheParameter): Cache => {
 
     // find the responseIds for the entity
     const responseIds = await store.smembers(entity).catch(gracefullyFail);
+
     // and add each response to be invalidated since they contained the entity data
-    responseIds &&
-      responseIds.forEach((responseId) => {
-        keysToInvalidate.push(responseId);
-        keysToInvalidate.push(buildRedisOperationResultCacheKey(responseId));
-      });
+    for (const responseId of responseIds || []) {
+      keysToInvalidate.push(responseId);
+      keysToInvalidate.push(buildRedisOperationResultCacheKey(responseId));
+    }
 
     // if invalidating an entity like Comment, then also invalidate Comment:1, Comment:2, etc
     if (!entity.includes(":")) {
@@ -66,11 +66,10 @@ export const createRedisCache = (params: RedisCacheParameter): Cache => {
         const entityResponseIds = await store.smembers(entityKey).catch(gracefullyFail);
         // if invalidating an entity check for associated operations containing that entity
         // and invalidate each response since they contained the entity data
-        entityResponseIds &&
-          entityResponseIds.forEach((responseId) => {
-            keysToInvalidate.push(responseId);
-            keysToInvalidate.push(buildRedisOperationResultCacheKey(responseId));
-          });
+        for (const responseId of entityResponseIds || []) {
+          keysToInvalidate.push(responseId);
+          keysToInvalidate.push(buildRedisOperationResultCacheKey(responseId));
+        }
 
         // then the entityKeys like Comment:1, Comment:2 etc to be invalidated
         keysToInvalidate.push(entityKey);
