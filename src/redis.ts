@@ -61,19 +61,21 @@ export const createRedisCache = (params: RedisCacheParameter): Cache => {
     // if invalidating an entity like Comment, then also invalidate Comment:1, Comment:2, etc
     if (!entity.includes(":")) {
       const entityKeys = await store.keys(`${entity}:*`).catch(gracefullyFail);
-      for (const entityKey of entityKeys || []) {
-        // and invalidate any responses in each of those entity keys
-        const entityResponseIds = await store.smembers(entityKey).catch(gracefullyFail);
-        // if invalidating an entity check for associated operations containing that entity
-        // and invalidate each response since they contained the entity data
-        for (const responseId of entityResponseIds || []) {
-          keysToInvalidate.push(responseId);
-          keysToInvalidate.push(buildRedisOperationResultCacheKey(responseId));
-        }
+      await Promise.all(
+        (entityKeys || []).map(async (entityKey) => {
+          // and invalidate any responses in each of those entity keys
+          const entityResponseIds = await store.smembers(entityKey).catch(gracefullyFail);
+          // if invalidating an entity check for associated operations containing that entity
+          // and invalidate each response since they contained the entity data
+          for (const responseId of entityResponseIds || []) {
+            keysToInvalidate.push(responseId);
+            keysToInvalidate.push(buildRedisOperationResultCacheKey(responseId));
+          }
 
-        // then the entityKeys like Comment:1, Comment:2 etc to be invalidated
-        keysToInvalidate.push(entityKey);
-      }
+          // then the entityKeys like Comment:1, Comment:2 etc to be invalidated
+          keysToInvalidate.push(entityKey);
+        })
+      );
     }
 
     return keysToInvalidate;
