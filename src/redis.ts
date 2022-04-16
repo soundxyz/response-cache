@@ -185,19 +185,20 @@ export const createRedisCache = (params: RedisCacheParameter): Cache => {
       return getFromRedis(responseId).then((v) => v[0]);
     },
     async invalidate(entitiesToRemove) {
-      const invalidationKeys: string[][] = [];
+      const invalidationKeys: string[] = [];
 
-      for (const { typename, id } of entitiesToRemove) {
-        invalidationKeys.push(
-          await buildEntityInvalidationsKeys(
-            id != null ? buildRedisEntityId(typename, id) : typename
-          )
-        );
-      }
+      await Promise.all(
+        Array.from(entitiesToRemove).map(async ({ typename, id }) => {
+          invalidationKeys.push(
+            ...(await buildEntityInvalidationsKeys(
+              id != null ? buildRedisEntityId(typename, id) : typename
+            ))
+          );
+        })
+      );
 
-      const keys = invalidationKeys.flat();
-      if (keys.length > 0) {
-        await store.del(keys).catch(gracefullyFail);
+      if (invalidationKeys.length > 0) {
+        await store.del(invalidationKeys).catch(gracefullyFail);
       }
     },
   };
