@@ -1,5 +1,17 @@
 # @soundxyz/response-cache
 
+## 0.3.0
+
+### Minor Changes
+
+- 903885f: Clean lock on execution error
+- 903885f: Parallel buildEntityInvalidationsKeys
+
+### Patch Changes
+
+- 903885f: Use "= null" instead of delete (small perf improvement)
+- 903885f: Change forEach to for of
+
 ## 0.2.6
 
 ### Patch Changes
