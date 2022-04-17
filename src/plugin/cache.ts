@@ -25,4 +25,6 @@ export type Cache = {
   get(id: string): PromiseOrValue<Maybe<ExecutionResult>>;
   /** invalidate operations via typename or id */
   invalidate(entities: Iterable<CacheEntityRecord>): PromiseOrValue<void>;
+  /** Function to be called when the operation couldn't be cached, by default, if the execution had errors */
+  onSkipCache(id: string): void;
 };

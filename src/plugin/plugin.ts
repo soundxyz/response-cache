@@ -328,6 +328,7 @@ export function useResponseCache({
               }
 
               if (!shouldCacheResult({ result })) {
+                cache.onSkipCache(operationId);
                 return;
               }
 
@@ -426,8 +427,6 @@ function applyResponseCacheLogic(
                   ctx.skip = true;
                   return;
                 }
-                // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-                // @ts-ignore  TODO: investigate what to do if id is something unexpected
                 ctx.identifier.set(`${typename}:${id}`, { typename, id });
                 ctx.types.add(typename);
                 if (typename in ctx.ttlPerType) {

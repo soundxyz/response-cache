@@ -51,37 +51,38 @@ export const createRedisCache = (params: RedisCacheParameter): Cache => {
 
     // find the responseIds for the entity
     const responseIds = await store.smembers(entity).catch(gracefullyFail);
+
     // and add each response to be invalidated since they contained the entity data
-    responseIds &&
-      responseIds.forEach((responseId) => {
-        keysToInvalidate.push(responseId);
-        keysToInvalidate.push(buildRedisOperationResultCacheKey(responseId));
-      });
+    for (const responseId of responseIds || []) {
+      keysToInvalidate.push(responseId);
+      keysToInvalidate.push(buildRedisOperationResultCacheKey(responseId));
+    }
 
     // if invalidating an entity like Comment, then also invalidate Comment:1, Comment:2, etc
     if (!entity.includes(":")) {
       const entityKeys = await store.keys(`${entity}:*`).catch(gracefullyFail);
-      for (const entityKey of entityKeys || []) {
-        // and invalidate any responses in each of those entity keys
-        const entityResponseIds = await store.smembers(entityKey).catch(gracefullyFail);
-        // if invalidating an entity check for associated operations containing that entity
-        // and invalidate each response since they contained the entity data
-        entityResponseIds &&
-          entityResponseIds.forEach((responseId) => {
+      await Promise.all(
+        (entityKeys || []).map(async (entityKey) => {
+          // and invalidate any responses in each of those entity keys
+          const entityResponseIds = await store.smembers(entityKey).catch(gracefullyFail);
+          // if invalidating an entity check for associated operations containing that entity
+          // and invalidate each response since they contained the entity data
+          for (const responseId of entityResponseIds || []) {
             keysToInvalidate.push(responseId);
             keysToInvalidate.push(buildRedisOperationResultCacheKey(responseId));
-          });
+          }
 
-        // then the entityKeys like Comment:1, Comment:2 etc to be invalidated
-        keysToInvalidate.push(entityKey);
-      }
+          // then the entityKeys like Comment:1, Comment:2 etc to be invalidated
+          keysToInvalidate.push(entityKey);
+        })
+      );
     }
 
     return keysToInvalidate;
   }
 
-  const responseIdLocks: Record<string, Lock> = {};
-  const ConcurrentLoadingCache: Record<string, Promise<unknown>> = {};
+  const responseIdLocks: Record<string, Lock | null> = {};
+  const ConcurrentLoadingCache: Record<string, Promise<unknown> | null> = {};
 
   function ConcurrentCachedCall<T>(key: string, cb: () => Promise<T>) {
     const concurrentLoadingValueCache = ConcurrentLoadingCache[key];
@@ -91,7 +92,7 @@ export const createRedisCache = (params: RedisCacheParameter): Cache => {
     }
 
     return (ConcurrentLoadingCache[key] = cb()).finally(() => {
-      delete ConcurrentLoadingCache[key];
+      ConcurrentLoadingCache[key] = null;
     }) as Promise<Awaited<T>>;
   }
 
@@ -110,6 +111,14 @@ export const createRedisCache = (params: RedisCacheParameter): Cache => {
   }
 
   return {
+    onSkipCache(responseId) {
+      const lock = responseIdLocks[responseId];
+
+      if (lock) {
+        lock.release().catch(console.error);
+        responseIdLocks[responseId] = null;
+      }
+    },
     async set(responseId, result, collectedEntities, ttl) {
       try {
         const pipeline = store.pipeline();
@@ -145,16 +154,10 @@ export const createRedisCache = (params: RedisCacheParameter): Cache => {
 
       const lock = responseIdLocks[responseId];
 
-      if (!lock) {
-        redLock && console.warn(`Lock for ${responseId} could not be found!`);
-      } else {
-        await lock
-          .release()
-          .catch(console.error)
-          .finally(() => {
-            delete responseIdLocks[responseId];
-          });
-      }
+      if (!lock) return;
+
+      lock.release().catch(console.error);
+      responseIdLocks[responseId] = null;
     },
     async get(responseId) {
       const [firstTry, redisOk] = await getFromRedis(responseId);
@@ -185,19 +188,20 @@ export const createRedisCache = (params: RedisCacheParameter): Cache => {
       return getFromRedis(responseId).then((v) => v[0]);
     },
     async invalidate(entitiesToRemove) {
-      const invalidationKeys: string[][] = [];
+      const invalidationKeys: string[] = [];
 
-      for (const { typename, id } of entitiesToRemove) {
-        invalidationKeys.push(
-          await buildEntityInvalidationsKeys(
-            id != null ? buildRedisEntityId(typename, id) : typename
-          )
-        );
-      }
+      await Promise.all(
+        Array.from(entitiesToRemove).map(async ({ typename, id }) => {
+          invalidationKeys.push(
+            ...(await buildEntityInvalidationsKeys(
+              id != null ? buildRedisEntityId(typename, id) : typename
+            ))
+          );
+        })
+      );
 
-      const keys = invalidationKeys.flat();
-      if (keys.length > 0) {
-        await store.del(keys).catch(gracefullyFail);
+      if (invalidationKeys.length > 0) {
+        await store.del(invalidationKeys).catch(gracefullyFail);
       }
     },
   };
