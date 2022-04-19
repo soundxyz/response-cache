@@ -1,7 +1,7 @@
 import test from "ava";
 import { execSync } from "child_process";
 import { gql, Plugin } from "graphql-ez";
-import IORedis from "ioredis";
+import IORedis, { Redis } from "ioredis";
 import RedLock from "redlock";
 import { setTimeout } from "timers/promises";
 import { inspect } from "util";
@@ -13,7 +13,7 @@ import { createRedisCache, useResponseCache } from "../src";
 
 inspect.defaultOptions.depth = Infinity;
 
-let redis: IORedis.Redis;
+let redis: Redis;
 let redLock: RedLock;
 
 let expensiveCallAmount = 0;

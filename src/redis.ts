@@ -1,5 +1,5 @@
 import type { Cache } from "./plugin";
-import type Redis from "ioredis";
+import type { Redis } from "ioredis";
 import type RedLock from "redlock";
 import { Lock, Settings } from "redlock";
 
@@ -11,7 +11,7 @@ export type RedisCacheParameter = {
    * Redis instance
    * @see Redis.Redis https://github.com/luin/ioredis
    */
-  redis: Redis.Redis;
+  redis: Redis;
   /**
    * Redlock instance
    */
