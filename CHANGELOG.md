@@ -1,5 +1,11 @@
 # @soundxyz/response-cache
 
+## 0.3.1
+
+### Patch Changes
+
+- b649bea: Update ioredis to v5
+
 ## 0.3.0
 
 ### Minor Changes
