@@ -47,6 +47,7 @@
   },
   "peerDependencies": {
     "@envelop/core": "^2.1.0",
+    "graphql": "*",
     "ioredis": "^4.28.5 || ^5.0.4",
     "redlock": "^5.0.0-beta.2"
   }

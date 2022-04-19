@@ -1,7 +1,8 @@
-import type { Cache } from "./plugin";
+import type { ExecutionResult } from "graphql";
 import type { Redis } from "ioredis";
 import type RedLock from "redlock";
 import { Lock, Settings } from "redlock";
+import type { Cache } from "./plugin";
 
 export type BuildRedisEntityId = (typename: string, id: number | string) => string;
 export type BuildRedisOperationResultCacheKey = (responseId: string) => string;
@@ -96,17 +97,17 @@ export const createRedisCache = (params: RedisCacheParameter): Cache => {
     }) as Promise<Awaited<T>>;
   }
 
-  function getFromRedis(responseId: string) {
-    return ConcurrentCachedCall(responseId, async () => {
+  function getFromRedis<T>(responseId: string) {
+    return ConcurrentCachedCall<[T | null, boolean]>(responseId, async () => {
       let ok = true;
       const result = await store.get(responseId).catch((err) => {
         ok = false;
         return gracefullyFail(err);
       });
 
-      if (result != null) return [JSON.parse(result), ok] as const;
+      if (result != null) return [JSON.parse(result), ok];
 
-      return [null, ok] as const;
+      return [null, ok];
     });
   }
 
@@ -160,7 +161,7 @@ export const createRedisCache = (params: RedisCacheParameter): Cache => {
       responseIdLocks[responseId] = null;
     },
     async get(responseId) {
-      const [firstTry, redisOk] = await getFromRedis(responseId);
+      const [firstTry, redisOk] = await getFromRedis<ExecutionResult>(responseId);
 
       if (!redisOk) return null;
 
@@ -185,7 +186,7 @@ export const createRedisCache = (params: RedisCacheParameter): Cache => {
       // If the lock was first attempt, skip the second get try, and go right to execute
       else if (lock?.attempts.length === 1) return null;
 
-      return getFromRedis(responseId).then((v) => v[0]);
+      return getFromRedis<ExecutionResult>(responseId).then((v) => v[0]);
     },
     async invalidate(entitiesToRemove) {
       const invalidationKeys: string[] = [];
