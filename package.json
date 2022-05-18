@@ -11,6 +11,10 @@
     "sound.xyz",
     "soundxyz"
   ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/soundxyz/response-cache.git"
+  },
   "license": "MIT",
   "author": "PabloSzx <pablosaez1995@gmail.com>",
   "sideEffects": false,
