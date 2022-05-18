@@ -3,6 +3,8 @@ lockfileVersion: 5.4
 specifiers:
   '@changesets/cli': ^2.22.0
   '@envelop/core': ^2.3.2
+  '@envelop/testing': ^4.3.2
+  '@envelop/types': ^2.2.0
   '@graphql-ez/fastify': ^0.10.0
   '@graphql-ez/fastify-testing': ^0.2.1
   '@graphql-tools/schema': ^8.3.11
@@ -31,6 +33,8 @@ dependencies:
 devDependencies:
   '@changesets/cli': 2.22.0
   '@envelop/core': 2.3.2_graphql-esm@16.0.1
+  '@envelop/testing': 4.3.2_rtqcre3fr5efgbuwekafzxhzgi
+  '@envelop/types': 2.2.0_graphql-esm@16.0.1
   '@graphql-ez/fastify': 0.10.0_wfvwuxap3jqvbxqrr5n4hyi7nq
   '@graphql-ez/fastify-testing': 0.2.1_wt2gk5epjwtawty5ssuhld7bym
   '@graphql-tools/schema': 8.3.11_graphql-esm@16.0.1
@@ -272,6 +276,19 @@ packages:
       graphql: ^14.0.0 || ^15.0.0 || ^16.0.0
     dependencies:
       '@envelop/types': 2.2.0_graphql-esm@16.0.1
+      graphql: /graphql-esm/16.0.1
+    dev: true
+
+  /@envelop/testing/4.3.2_rtqcre3fr5efgbuwekafzxhzgi:
+    resolution: {integrity: sha512-bODKMI+wjfKEiiH+phig/XijFwfs6nwyZLbonj1Gpxn/7l2x3+LYywnfAV4PeBiLAAifDmvDLvuv6AxB7ptuGg==}
+    peerDependencies:
+      '@envelop/core': ^2.3.2
+      '@envelop/types': ^2.2.0
+      graphql: ^14.0.0 || ^15.0.0 || ^16.0.0
+    dependencies:
+      '@envelop/core': 2.3.2_graphql-esm@16.0.1
+      '@envelop/types': 2.2.0_graphql-esm@16.0.1
+      '@graphql-tools/utils': 8.6.10_graphql-esm@16.0.1
       graphql: /graphql-esm/16.0.1
     dev: true
 

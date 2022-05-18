@@ -18,8 +18,8 @@ export type RedisCacheParameter = {
    * Enable and customize redlock
    */
   redlock?: {
-    client: RedLock
-    duration: number
+    client: RedLock;
+    duration: number;
     settings?: Partial<Settings>;
   } | null;
   /**
@@ -44,7 +44,7 @@ export const createRedisCache = (params: RedisCacheParameter): Cache => {
   const redLock = params.redlock?.client;
   const lockSettings = params.redlock?.settings;
   const lockDuration = params.redlock?.duration ?? 5000;
- 
+
   const buildRedisEntityId = params?.buildRedisEntityId ?? defaultBuildRedisEntityId;
   const buildRedisOperationResultCacheKey =
     params?.buildRedisOperationResultCacheKey ?? defaultBuildRedisOperationResultCacheKey;

@@ -45,6 +45,8 @@
   "devDependencies": {
     "@changesets/cli": "^2.22.0",
     "@envelop/core": "^2.3.2",
+    "@envelop/testing": "^4.3.2",
+    "@envelop/types": "^2.2.0",
     "@graphql-ez/fastify": "^0.10.0",
     "@graphql-ez/fastify-testing": "^0.2.1",
     "@graphql-tools/schema": "^8.3.11",
