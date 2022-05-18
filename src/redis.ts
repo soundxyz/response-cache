@@ -169,7 +169,9 @@ export const createRedisCache = (params: RedisCacheParameter): Cache => {
 
       if (firstTry) return firstTry;
 
-      const lock = await redLock?.acquire(["lock:" + responseId], lockDuration, lockSettings).then(
+      if (!redLock) return null;
+
+      const lock = await redLock.acquire(["lock:" + responseId], lockDuration, lockSettings).then(
         (lock) => {
           if (lock.attempts.length === 1) {
             return (responseIdLocks[responseId] = lock);
