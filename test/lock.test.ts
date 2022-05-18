@@ -11,7 +11,7 @@ import { makeExecutableSchema } from "@graphql-tools/schema";
 
 import { createRedisCache, useResponseCache } from "../src";
 
-inspect.defaultOptions.depth = Infinity;
+inspect.defaultOptions.depth = 5;
 
 let redis: Redis;
 let redLock: RedLock;
@@ -21,12 +21,14 @@ let expensiveCallAmount = 0;
 const createCachePlugin = () =>
   useResponseCache({
     cache: createRedisCache({
-      redLock,
       redis,
-      lockDuration: 5000,
-      lockSettings: {
-        retryCount: (5000 / 100) * 2,
-        retryDelay: 100,
+      redlock: {
+        client: redLock,
+        duration: 5000,
+        settings: {
+          retryCount: (5000 / 100) * 2,
+          retryDelay: 100,
+        },
       },
     }),
   });

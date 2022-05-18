@@ -1,7 +1,7 @@
 import type { ExecutionResult } from "graphql";
 import type { Redis } from "ioredis";
 import type RedLock from "redlock";
-import { Lock, Settings } from "redlock";
+import type { Lock, Settings } from "redlock";
 import type { Cache } from "./plugin";
 
 export type BuildRedisEntityId = (typename: string, id: number | string) => string;
@@ -13,10 +13,15 @@ export type RedisCacheParameter = {
    * @see Redis.Redis https://github.com/luin/ioredis
    */
   redis: Redis;
+
   /**
-   * Redlock instance
+   * Enable and customize redlock
    */
-  redLock: RedLock | null;
+  redlock?: {
+    client: RedLock
+    duration: number
+    settings?: Partial<Settings>;
+  } | null;
   /**
    * Customize how the cache entity id is built.
    * By default the typename is concatenated with the id e.g. `User:1`
@@ -27,9 +32,6 @@ export type RedisCacheParameter = {
    * By default `operations` is concatenated with the responseId e.g. `operations:arZm3tCKgGmpu+a5slrpSH9vjSQ=`
    */
   buildRedisOperationResultCacheKey?: BuildRedisOperationResultCacheKey;
-
-  lockSettings: Partial<Settings>;
-  lockDuration: number;
 };
 
 function gracefullyFail(err: unknown) {
@@ -39,10 +41,10 @@ function gracefullyFail(err: unknown) {
 
 export const createRedisCache = (params: RedisCacheParameter): Cache => {
   const store = params.redis;
-  const redLock = params.redLock;
-  const lockSettings = params.lockSettings;
-  const lockDuration = params.lockDuration;
-
+  const redLock = params.redlock?.client;
+  const lockSettings = params.redlock?.settings;
+  const lockDuration = params.redlock?.duration ?? 5000;
+ 
   const buildRedisEntityId = params?.buildRedisEntityId ?? defaultBuildRedisEntityId;
   const buildRedisOperationResultCacheKey =
     params?.buildRedisOperationResultCacheKey ?? defaultBuildRedisOperationResultCacheKey;

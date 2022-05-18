@@ -59,9 +59,14 @@
     "typescript": "^4.6.4"
   },
   "peerDependencies": {
-    "@envelop/core": "^2.1.0",
+    "@envelop/core": "*",
     "graphql": "*",
-    "ioredis": "^4.28.5 || ^5.0.4",
+    "ioredis": "^5.0.4",
     "redlock": "^5.0.0-beta.2"
+  },
+  "peerDependenciesMeta": {
+    "redlock": {
+      "optional": true
+    }
   }
 }
