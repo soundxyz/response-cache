@@ -14,6 +14,11 @@ const redis = await GetRedisInstanceServer();
 
 const redLock = new RedLock([redis]);
 
+afterAll(async () => {
+  redis.disconnect();
+  redLock.quit();
+});
+
 let expensiveCallAmount = 0;
 
 const createCachePlugin = () =>
