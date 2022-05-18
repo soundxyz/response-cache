@@ -1,7 +1,7 @@
 import test from "ava";
-import { execSync } from "child_process";
 import { gql, Plugin } from "graphql-ez";
 import IORedis, { Redis } from "ioredis";
+import { RedisMemoryServer } from "redis-memory-server";
 import RedLock from "redlock";
 import { setTimeout } from "timers/promises";
 import { inspect } from "util";
@@ -60,12 +60,15 @@ function TestClient(cachePlugin: Plugin) {
   });
 }
 
-test.before(async () => {
-  execSync("docker-compose down && docker-compose up -d", {
-    stdio: "ignore",
-  });
+const memoryServer = new RedisMemoryServer({});
 
-  redis = new IORedis(9736);
+test.before(async () => {
+  const [host, port] = await Promise.all([memoryServer.getHost(), memoryServer.getPort()]);
+
+  redis = new IORedis({
+    host,
+    port,
+  });
 
   redLock = new RedLock([redis]);
 });
