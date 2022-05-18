@@ -36,7 +36,7 @@
   "scripts": {
     "prepack": "bob-ts -f interop -i src --no-sourcemap && tsc -p tsconfig.build.json",
     "release": "changeset publish",
-    "test": "ava"
+    "test": "vitest run"
   },
   "dependencies": {
     "@graphql-tools/utils": "^8.6.10",
@@ -49,18 +49,20 @@
     "@graphql-ez/fastify-testing": "^0.2.1",
     "@graphql-tools/schema": "^8.3.11",
     "@types/node": "^17.0.34",
-    "ava": "^4.2.0",
     "bob-ts": "^4.0.0",
     "bob-tsm": "^1.0.0",
     "c8": "^7.11.3",
     "esbuild": "^0.14.39",
     "fastify": "^3.29.0",
-    "graphql": "^16.5.0",
+    "graphql": "npm:graphql-esm@^16.0.0",
     "graphql-ez": "^0.15.0",
     "ioredis": "^5.0.5",
+    "prettier": "^2.6.2",
     "redis-memory-server": "^0.5.0",
     "redlock": "^5.0.0-beta.2",
-    "typescript": "^4.6.4"
+    "typescript": "^4.6.4",
+    "vite": "^2.9.9",
+    "vitest": "^0.12.6"
   },
   "peerDependencies": {
     "@envelop/core": "*",

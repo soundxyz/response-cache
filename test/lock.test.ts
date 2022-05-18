@@ -1,14 +1,12 @@
-import test from "ava";
+import { CreateTestClient, GlobalTeardown } from "@graphql-ez/fastify-testing";
+import { makeExecutableSchema } from "@graphql-tools/schema";
 import { gql, Plugin } from "graphql-ez";
 import IORedis, { Redis } from "ioredis";
 import { RedisMemoryServer } from "redis-memory-server";
 import RedLock from "redlock";
 import { setTimeout } from "timers/promises";
 import { inspect } from "util";
-
-import { CreateTestClient, GlobalTeardown } from "@graphql-ez/fastify-testing";
-import { makeExecutableSchema } from "@graphql-tools/schema";
-
+import { afterAll, beforeAll, test } from "vitest";
 import { createRedisCache, useResponseCache } from "../src";
 
 inspect.defaultOptions.depth = 5;
@@ -64,7 +62,7 @@ function TestClient(cachePlugin: Plugin) {
 
 const memoryServer = new RedisMemoryServer({});
 
-test.before(async () => {
+beforeAll(async () => {
   const [host, port] = await Promise.all([memoryServer.getHost(), memoryServer.getPort()]);
 
   redis = new IORedis({
@@ -75,9 +73,9 @@ test.before(async () => {
   redLock = new RedLock([redis]);
 });
 
-test.after.always(GlobalTeardown);
+afterAll(GlobalTeardown);
 
-test("hello", async (t) => {
+test("lock works correctly", async (t) => {
   const sharedCachePlugin = createCachePlugin();
   const clientsAmount = 10;
   const repeatQueryAmount = 100;
@@ -93,13 +91,13 @@ test("hello", async (t) => {
     })
   );
 
-  t.is(data.length, clientsAmount);
+  t.expect(data.length).eq(clientsAmount);
 
-  t.true(
+  t.expect(
     data.every(
       (v) => v.length === repeatQueryAmount && v.every((val) => val.hello === "Hello World!")
     )
-  );
+  ).eq(true);
 
-  t.is(expensiveCallAmount, 1);
-});
+  t.expect(expensiveCallAmount).eq(1);
+}, 5000);
