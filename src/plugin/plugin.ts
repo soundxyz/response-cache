@@ -156,6 +156,18 @@ export const defaultGetDocumentStringFromContext: GetDocumentStringFromContextFu
   context
 ) => context[rawDocumentStringSymbol as any] as any;
 
+export interface ResponseCacheContext {
+  $responseCache?: {
+    setExpiry(args: {
+      /**
+       * TTL in milliseconds
+       */
+      ttl: number;
+    }): void;
+    getExpiry(): number;
+  };
+}
+
 export function useResponseCache({
   cache,
   ttl: globalTtl = Infinity,
@@ -216,8 +228,20 @@ export function useResponseCache({
         skip: false,
       };
 
+      const publicContext: ResponseCacheContext = {
+        $responseCache: {
+          setExpiry({ ttl }) {
+            context.currentTtl = ttl;
+          },
+          getExpiry() {
+            return context.currentTtl ?? globalTtl;
+          },
+        },
+      };
+
       ctx.extendContext({
         [contextSymbol]: context,
+        ...publicContext,
       });
 
       if (isMutation(ctx.args.document)) {
@@ -335,7 +359,7 @@ export function useResponseCache({
               // we only use the global ttl if no currentTtl has been determined.
               const finalTtl = context.currentTtl ?? globalTtl;
 
-              if (finalTtl === 0) {
+              if (finalTtl <= 0) {
                 if (includeExtensionMetadata) {
                   setResult({
                     ...result,
