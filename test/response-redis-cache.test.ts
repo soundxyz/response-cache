@@ -10,7 +10,7 @@ import {
   defaultBuildRedisEntityId,
   defaultBuildRedisOperationResultCacheKey,
 } from "../src";
-import { useResponseCache } from "../src/plugin/index";
+import { ResponseCacheContext, useResponseCache } from "../src/plugin/index";
 import { GetRedisInstanceServer } from "./utils";
 
 inspect.defaultOptions.depth = 10;
@@ -1181,5 +1181,112 @@ describe("useResponseCache with Redis cache", () => {
     await testInstance.execute(query);
     // now we've queried twice
     expect(spy).toHaveBeenCalledTimes(2);
+  });
+
+  test("setExpiry/getExpiry", async () => {
+    vi.useFakeTimers();
+
+    let nCalls = 0;
+    const spy = vi.fn((_root: unknown, _args: unknown, ctx: ResponseCacheContext) => {
+      if (++nCalls <= 2) {
+        ctx.$responseCache?.setExpiry({
+          ttl: 0,
+        });
+
+        expect(ctx.$responseCache?.getExpiry()).toBe(0);
+      } else {
+        expect(ctx.$responseCache?.getExpiry()).toBe(500);
+      }
+
+      return [
+        {
+          id: 1,
+          name: "User 1",
+          comments: [
+            {
+              id: 1,
+              text: "Comment 1 of User 1",
+            },
+          ],
+        },
+        {
+          id: 2,
+          name: "User 2",
+          comments: [
+            {
+              id: 2,
+              text: "Comment 2 of User 2",
+            },
+          ],
+        },
+      ];
+    });
+
+    const schema = makeExecutableSchema({
+      typeDefs: /* GraphQL */ `
+        type Query {
+          users: [User!]!
+        }
+
+        type User {
+          id: ID!
+          name: String!
+          comments: [Comment!]!
+          recentComment: Comment
+        }
+
+        type Comment {
+          id: ID!
+          text: String!
+        }
+      `,
+      resolvers: {
+        Query: {
+          users: spy,
+        },
+      },
+    });
+
+    const testInstance = createTestkit(
+      [
+        useResponseCache({
+          cache,
+          ttl: 500,
+          ttlPerType: {
+            User: 200,
+          },
+        }),
+      ],
+      schema
+    );
+
+    const query = /* GraphQL */ `
+      query test {
+        users {
+          id
+          name
+          comments {
+            id
+            text
+          }
+        }
+      }
+    `;
+
+    // query and doesn't cache the result
+    await testInstance.execute(query);
+    expect(spy).toHaveBeenCalledTimes(1);
+
+    // query and doesn't cache the result
+    await testInstance.execute(query);
+    expect(spy).toHaveBeenCalledTimes(2);
+
+    // query and the result is cached
+    await testInstance.execute(query);
+    expect(spy).toHaveBeenCalledTimes(3);
+
+    // the result is already cached
+    await testInstance.execute(query);
+    expect(spy).toHaveBeenCalledTimes(3);
   });
 });
