@@ -360,6 +360,7 @@ export function useResponseCache({
               const finalTtl = context.currentTtl ?? globalTtl;
 
               if (finalTtl <= 0) {
+                cache.onSkipCache(operationId);
                 if (includeExtensionMetadata) {
                   setResult({
                     ...result,
