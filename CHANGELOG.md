@@ -1,5 +1,11 @@
 # @soundxyz/response-cache
 
+## 1.0.1
+
+### Patch Changes
+
+- 7325294: remove lock on finalTtl <= 0
+
 ## 1.0.0
 
 ### Major Changes
