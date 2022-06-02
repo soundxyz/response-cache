@@ -1,6 +1,6 @@
 {
   "name": "@soundxyz/response-cache",
-  "version": "0.3.1",
+  "version": "1.0.0",
   "description": "Heavily inspired by @envelop/response-cache",
   "keywords": [
     "envelop",
