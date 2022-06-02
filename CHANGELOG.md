@@ -1,5 +1,16 @@
 # @soundxyz/response-cache
 
+## 1.0.0
+
+### Major Changes
+
+- bfb518f: First class support for ESM
+
+### Minor Changes
+
+- bfb518f: Make redlock optional + put all options in `redlock` field
+- bfb518f: Allow to set the expiry time on execution, use $responseCache.setExpiry, $responseCache.getExpiry, and ResponseCacheContext interface to extend user context type
+
 ## 0.3.1
 
 ### Patch Changes
