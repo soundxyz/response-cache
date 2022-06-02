@@ -1,6 +1,7 @@
 {
   "name": "@soundxyz/response-cache",
   "version": "0.3.1",
+  "description": "Heavily inspired by @envelop/response-cache",
   "keywords": [
     "envelop",
     "graphql",
@@ -10,45 +11,70 @@
     "sound.xyz",
     "soundxyz"
   ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/soundxyz/response-cache.git"
+  },
   "license": "MIT",
   "author": "PabloSzx <pablosaez1995@gmail.com>",
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "require": "./dist/index.js",
+      "import": "./dist/index.mjs"
+    },
+    "./*": {
+      "require": "./dist/*.js",
+      "import": "./dist/*.mjs"
+    }
+  },
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "files": [
     "dist"
   ],
   "scripts": {
-    "prepack": "bob-ts -f cjs -i src --no-sourcemap && tsc -p tsconfig.build.json",
+    "prepack": "bob-ts -f interop -i src --no-sourcemap && tsc -p tsconfig.build.json",
     "release": "changeset publish",
-    "test": "ava"
+    "test": "vitest run"
   },
   "dependencies": {
-    "@graphql-tools/utils": "^8.6.8",
+    "@graphql-tools/utils": "^8.6.10",
     "fast-json-stable-stringify": "^2.1.0"
   },
   "devDependencies": {
     "@changesets/cli": "^2.22.0",
-    "@envelop/core": "^2.3.1",
-    "@graphql-ez/fastify": "^0.9.7",
-    "@graphql-ez/fastify-testing": "^0.2.0",
-    "@graphql-tools/schema": "^8.3.9",
-    "@types/node": "^17.0.25",
-    "ava": "^4.2.0",
-    "bob-ts": "^3.1.2",
-    "bob-tsm": "^0.4.8",
-    "c8": "^7.11.0",
-    "esbuild": "^0.14.36",
-    "fastify": "^3.28.0",
-    "graphql": "^16.3.0",
-    "graphql-ez": "^0.14.1",
-    "ioredis": "^5.0.4",
+    "@envelop/core": "^2.3.2",
+    "@envelop/testing": "^4.3.2",
+    "@envelop/types": "^2.2.0",
+    "@graphql-ez/fastify": "^0.10.0",
+    "@graphql-ez/fastify-testing": "^0.2.1",
+    "@graphql-tools/schema": "^8.3.11",
+    "@types/node": "^17.0.34",
+    "bob-ts": "^4.0.0",
+    "bob-tsm": "^1.0.0",
+    "c8": "^7.11.3",
+    "esbuild": "^0.14.39",
+    "fastify": "^3.29.0",
+    "graphql": "npm:graphql-esm@^16.0.0",
+    "graphql-ez": "^0.15.0",
+    "ioredis": "^5.0.5",
+    "prettier": "^2.6.2",
+    "redis-memory-server": "^0.5.0",
     "redlock": "^5.0.0-beta.2",
-    "typescript": "^4.6.3"
+    "typescript": "^4.6.4",
+    "vite": "^2.9.9",
+    "vitest": "^0.12.6"
   },
   "peerDependencies": {
-    "@envelop/core": "^2.1.0",
+    "@envelop/core": "*",
     "graphql": "*",
-    "ioredis": "^4.28.5 || ^5.0.4",
+    "ioredis": "^5.0.4",
     "redlock": "^5.0.0-beta.2"
+  },
+  "peerDependenciesMeta": {
+    "redlock": {
+      "optional": true
+    }
   }
 }

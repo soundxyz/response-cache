@@ -1,32 +1,37 @@
-import test from "ava";
-import { execSync } from "child_process";
+import { CreateTestClient, GlobalTeardown } from "@graphql-ez/fastify-testing";
+import { makeExecutableSchema } from "@graphql-tools/schema";
 import { gql, Plugin } from "graphql-ez";
-import IORedis, { Redis } from "ioredis";
 import RedLock from "redlock";
 import { setTimeout } from "timers/promises";
 import { inspect } from "util";
-
-import { CreateTestClient, GlobalTeardown } from "@graphql-ez/fastify-testing";
-import { makeExecutableSchema } from "@graphql-tools/schema";
-
+import { afterAll, test } from "vitest";
 import { createRedisCache, useResponseCache } from "../src";
+import { GetRedisInstanceServer } from "./utils";
 
-inspect.defaultOptions.depth = Infinity;
+inspect.defaultOptions.depth = 5;
 
-let redis: Redis;
-let redLock: RedLock;
+const redis = await GetRedisInstanceServer();
+
+const redLock = new RedLock([redis]);
+
+afterAll(async () => {
+  redis.disconnect();
+  redLock.quit();
+});
 
 let expensiveCallAmount = 0;
 
 const createCachePlugin = () =>
   useResponseCache({
     cache: createRedisCache({
-      redLock,
       redis,
-      lockDuration: 5000,
-      lockSettings: {
-        retryCount: (5000 / 100) * 2,
-        retryDelay: 100,
+      redlock: {
+        client: redLock,
+        duration: 5000,
+        settings: {
+          retryCount: (5000 / 100) * 2,
+          retryDelay: 100,
+        },
       },
     }),
   });
@@ -60,19 +65,9 @@ function TestClient(cachePlugin: Plugin) {
   });
 }
 
-test.before(async () => {
-  execSync("docker-compose down && docker-compose up -d", {
-    stdio: "ignore",
-  });
+afterAll(GlobalTeardown);
 
-  redis = new IORedis(9736);
-
-  redLock = new RedLock([redis]);
-});
-
-test.after.always(GlobalTeardown);
-
-test("hello", async (t) => {
+test("lock works correctly between different instances", async (t) => {
   const sharedCachePlugin = createCachePlugin();
   const clientsAmount = 10;
   const repeatQueryAmount = 100;
@@ -88,13 +83,13 @@ test("hello", async (t) => {
     })
   );
 
-  t.is(data.length, clientsAmount);
+  t.expect(data.length).eq(clientsAmount);
 
-  t.true(
+  t.expect(
     data.every(
       (v) => v.length === repeatQueryAmount && v.every((val) => val.hello === "Hello World!")
     )
-  );
+  ).eq(true);
 
-  t.is(expensiveCallAmount, 1);
-});
+  t.expect(expensiveCallAmount).eq(1);
+}, 5000);
