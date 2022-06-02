@@ -1,5 +1,11 @@
 # @soundxyz/response-cache
 
+## 1.0.2
+
+### Patch Changes
+
+- 3ea61fd: Fix overwrite existing result extensions
+
 ## 1.0.1
 
 ### Patch Changes
