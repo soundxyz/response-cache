@@ -326,6 +326,7 @@ export function useResponseCache({
               ctx.setResultAndStopExecution({
                 ...cachedResponse,
                 extensions: {
+                  ...cachedResponse.extensions,
                   responseCache: {
                     hit: true,
                   },
@@ -365,6 +366,7 @@ export function useResponseCache({
                   setResult({
                     ...result,
                     extensions: {
+                      ...result.extensions,
                       responseCache: {
                         hit: false,
                         didCache: false,
@@ -380,6 +382,7 @@ export function useResponseCache({
                 setResult({
                   ...result,
                   extensions: {
+                    ...result.extensions,
                     responseCache: {
                       hit: false,
                       didCache: true,
