@@ -192,7 +192,7 @@ export function useResponseCache({
   // never cache Introspections
   ttlPerSchemaCoordinate = { "Query.__schema": 0, ...ttlPerSchemaCoordinate };
 
-  const shouldSkipDocument = new WeakMap<DocumentNode, true>();
+  const enabledCachingDocuments = new WeakMap<DocumentNode, boolean>();
 
   return {
     onSchemaChange(ctx) {
@@ -281,30 +281,32 @@ export function useResponseCache({
         }
 
         if (enabledCaching === true && ttlPerSchemaCoordinate) {
-          const shouldSkip = shouldSkipDocument.get(ctx.args.document);
+          const enabledCachingDocumentCache = enabledCachingDocuments.get(ctx.args.document);
 
-          if (shouldSkip) return;
-
-          const typeInfo = new TypeInfo(ctx.args.schema);
-          visit(
-            ctx.args.document,
-            visitWithTypeInfo(typeInfo, {
-              Field(fieldNode) {
-                const parentType = typeInfo.getParentType();
-                if (parentType) {
-                  const schemaCoordinate = `${parentType.name}.${fieldNode.name.value}`;
-                  const maybeTtl = ttlPerSchemaCoordinate[schemaCoordinate];
-                  if (maybeTtl === 0) {
-                    enabledCaching = false;
-                    shouldSkipDocument.set(ctx.args.document, true);
-                    return BREAK;
-                  } else if (maybeTtl !== undefined) {
-                    context.currentTtl = calculateTtl(maybeTtl, context.currentTtl);
+          if (enabledCachingDocumentCache != null) {
+            enabledCaching = enabledCachingDocumentCache;
+          } else {
+            const typeInfo = new TypeInfo(ctx.args.schema);
+            visit(
+              ctx.args.document,
+              visitWithTypeInfo(typeInfo, {
+                Field(fieldNode) {
+                  const parentType = typeInfo.getParentType();
+                  if (parentType) {
+                    const schemaCoordinate = `${parentType.name}.${fieldNode.name.value}`;
+                    const maybeTtl = ttlPerSchemaCoordinate[schemaCoordinate];
+                    if (maybeTtl === 0) {
+                      enabledCaching = false;
+                      return BREAK;
+                    } else if (maybeTtl !== undefined) {
+                      context.currentTtl = calculateTtl(maybeTtl, context.currentTtl);
+                    }
                   }
-                }
-              },
-            })
-          );
+                },
+              })
+            );
+            enabledCachingDocuments.set(ctx.args.document, enabledCaching);
+          }
         }
 
         // This query should not be cached
