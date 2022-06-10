@@ -11,7 +11,6 @@ specifiers:
   '@graphql-tools/utils': ^8.6.10
   '@types/node': ^17.0.34
   bob-ts: ^4.0.0
-  bob-tsm: ^1.0.0
   c8: ^7.11.3
   esbuild: ^0.14.39
   fast-json-stable-stringify: ^2.1.0
@@ -40,7 +39,6 @@ devDependencies:
   '@graphql-tools/schema': 8.3.11_graphql-esm@16.0.1
   '@types/node': 17.0.34
   bob-ts: 4.0.0_zz5nafz6mybjrd55brvzzziopa
-  bob-tsm: 1.0.0_is6sdst7a3gdtxmvsittbmruma
   c8: 7.11.3
   esbuild: 0.14.39
   fastify: 3.29.0
@@ -685,23 +683,6 @@ packages:
       esbuild: 0.14.39
       rollup: 2.73.0
       typescript: 4.6.4
-    dev: true
-
-  /bob-tsm/1.0.0_is6sdst7a3gdtxmvsittbmruma:
-    resolution: {integrity: sha512-pyCeEpgm7+2VcklvUsTfdNOMtfOpuJwh0W/f7T2iNJqNxFfyyqOhAtQK4lxZC77lx5NigpbshLBHlf6fQ33NjQ==}
-    engines: {node: '>=14.13.1'}
-    hasBin: true
-    peerDependencies:
-      esbuild: '>=0.14.39'
-      typescript: '>=4.1.2'
-    peerDependenciesMeta:
-      typescript:
-        optional: true
-    dependencies:
-      esbuild: 0.14.39
-      typescript: 4.6.4
-    optionalDependencies:
-      fsevents: 2.3.2
     dev: true
 
   /brace-expansion/1.1.11:
@@ -1508,7 +1489,6 @@ packages:
   /graphql-esm/16.0.1:
     resolution: {integrity: sha512-YJyNDfqYqlRldsPTX9K8QA8xRSjLIzw6kpDKTbdzjBoYIB6CgVQStNNZ4nM22XK5yoIlKUr6qNC+ZLhbX9wF+w==}
     engines: {node: ^12.22.0 || ^14.16.0 || >=16.0.0}
-    dev: true
 
   /graphql-ez/0.15.0_p33ztzoablmwqhck2k4624dsna:
     resolution: {integrity: sha512-+T8Eqww0DBiNXp3ygqhJzXCxhAu3nAgdYT7JZrgzjUFQQQpZThLVhOPGiAkkys8YuF215rUbRjHnFSuY5YbZUg==}
