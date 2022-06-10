@@ -19,7 +19,10 @@ export type RedisCacheParameter = {
    */
   redlock?: {
     client: RedLock;
-    duration: number;
+    /**
+     * @default 5000 ms
+     */
+    duration?: number;
     settings?: Partial<Settings>;
   } | null;
   /**
@@ -44,6 +47,8 @@ export const createRedisCache = (params: RedisCacheParameter): Cache => {
   const redLock = params.redlock?.client;
   const lockSettings = params.redlock?.settings;
   const lockDuration = params.redlock?.duration ?? 5000;
+  const lockRetryDelay = params.redlock?.settings?.retryDelay ?? 250;
+  const lockRetryCount = lockSettings?.retryCount ?? (lockDuration / lockRetryDelay) * 2;
 
   const buildRedisEntityId = params?.buildRedisEntityId ?? defaultBuildRedisEntityId;
   const buildRedisOperationResultCacheKey =
@@ -171,19 +176,25 @@ export const createRedisCache = (params: RedisCacheParameter): Cache => {
 
       if (!redLock) return null;
 
-      const lock = await redLock.acquire(["lock:" + responseId], lockDuration, lockSettings).then(
-        (lock) => {
-          if (lock.attempts.length === 1) {
-            return (responseIdLocks[responseId] = lock);
-          }
+      const lock = await redLock
+        .acquire(["lock:" + responseId], lockDuration, {
+          ...lockSettings,
+          retryCount: lockRetryCount,
+          retryDelay: lockRetryDelay,
+        })
+        .then(
+          (lock) => {
+            if (lock.attempts.length === 1) {
+              return (responseIdLocks[responseId] = lock);
+            }
 
-          return lock;
-        },
-        (err) => {
-          console.error(err);
-          return null;
-        }
-      );
+            return lock;
+          },
+          (err) => {
+            console.error(err);
+            return null;
+          }
+        );
 
       // Any lock that took more than 1 attempt should be released right away for the other readers
       if (lock && lock.attempts.length > 1) lock.release().catch(console.error);
