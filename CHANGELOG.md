@@ -1,5 +1,13 @@
 # @soundxyz/response-cache
 
+## 1.0.3
+
+### Patch Changes
+
+- 2237fde: Always leverage document visit cache
+- 007669b: Official Documentation
+- b81b3b3: Improve redlock defaults
+
 ## 1.0.2
 
 ### Patch Changes
