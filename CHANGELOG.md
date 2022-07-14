@@ -1,5 +1,11 @@
 # @soundxyz/response-cache
 
+## 1.1.1
+
+### Minor Changes
+
+- New "debugTtl" option for "createRedisCache" that shows ttl (seconds) of currently-cached responses in metadata extensions
+
 ## 1.0.3
 
 ### Patch Changes
