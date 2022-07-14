@@ -321,7 +321,7 @@ export function useResponseCache({
             sessionId: session(ctx.args.contextValue),
           });
 
-          const cachedResponse = await cache.get(operationId);
+          const [cachedResponse, extra] = await cache.get(operationId);
 
           if (cachedResponse != null) {
             if (includeExtensionMetadata) {
@@ -331,6 +331,7 @@ export function useResponseCache({
                   ...cachedResponse.extensions,
                   responseCache: {
                     hit: true,
+                    ttl: extra?.ttl,
                   },
                 },
               });
