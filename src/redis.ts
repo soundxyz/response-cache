@@ -35,6 +35,12 @@ export type RedisCacheParameter = {
    * By default `operations` is concatenated with the responseId e.g. `operations:arZm3tCKgGmpu+a5slrpSH9vjSQ=`
    */
   buildRedisOperationResultCacheKey?: BuildRedisOperationResultCacheKey;
+  /**
+   * Debug TTL of existing cache results
+   *
+   * @default false
+   */
+  debugTtl?: boolean;
 };
 
 function gracefullyFail(err: unknown) {
@@ -49,6 +55,7 @@ export const createRedisCache = (params: RedisCacheParameter): Cache => {
   const lockDuration = params.redlock?.duration ?? 5000;
   const lockRetryDelay = params.redlock?.settings?.retryDelay ?? 250;
   const lockRetryCount = lockSettings?.retryCount ?? (lockDuration / lockRetryDelay) * 2;
+  const debugTtl = params.debugTtl ?? false;
 
   const buildRedisEntityId = params?.buildRedisEntityId ?? defaultBuildRedisEntityId;
   const buildRedisOperationResultCacheKey =
@@ -105,16 +112,50 @@ export const createRedisCache = (params: RedisCacheParameter): Cache => {
   }
 
   function getFromRedis<T>(responseId: string) {
-    return ConcurrentCachedCall<[T | null, boolean]>(responseId, async () => {
+    return ConcurrentCachedCall<[T | null, { ok: boolean; ttl?: number }]>(responseId, async () => {
       let ok = true;
+
+      if (debugTtl) {
+        const resultWithTtl = await store
+          .pipeline()
+          .get(responseId)
+          .ttl(responseId)
+          .exec()
+          .catch(gracefullyFail);
+
+        if (!resultWithTtl || !resultWithTtl[0] || !resultWithTtl[1]) {
+          return [null, { ok: false, ttl: undefined }];
+        }
+
+        const [[resultError, result], [ttlError, ttlRedis]] = resultWithTtl;
+
+        const ttl = typeof ttlRedis === "number" ? ttlRedis : undefined;
+
+        if (resultError) {
+          gracefullyFail(resultError);
+          ok = false;
+        }
+
+        if (ttlError) {
+          gracefullyFail(ttlError);
+          ok = false;
+        }
+
+        if (result != null && typeof result === "string") {
+          return [JSON.parse(result), { ok, ttl }];
+        }
+
+        return [null, { ok, ttl }];
+      }
+
       const result = await store.get(responseId).catch((err) => {
         ok = false;
         return gracefullyFail(err);
       });
 
-      if (result != null) return [JSON.parse(result), ok];
+      if (result != null) return [JSON.parse(result), { ok }];
 
-      return [null, ok];
+      return [null, { ok }];
     });
   }
 
@@ -170,11 +211,11 @@ export const createRedisCache = (params: RedisCacheParameter): Cache => {
     async get(responseId) {
       const [firstTry, redisOk] = await getFromRedis<ExecutionResult>(responseId);
 
-      if (!redisOk) return null;
+      if (!redisOk) return [null];
 
-      if (firstTry) return firstTry;
+      if (firstTry) return [firstTry];
 
-      if (!redLock) return null;
+      if (!redLock) return [null];
 
       const lock = await redLock
         .acquire(["lock:" + responseId], lockDuration, {
@@ -199,9 +240,9 @@ export const createRedisCache = (params: RedisCacheParameter): Cache => {
       // Any lock that took more than 1 attempt should be released right away for the other readers
       if (lock && lock.attempts.length > 1) lock.release().catch(console.error);
       // If the lock was first attempt, skip the second get try, and go right to execute
-      else if (lock?.attempts.length === 1) return null;
+      else if (lock?.attempts.length === 1) return [null];
 
-      return getFromRedis<ExecutionResult>(responseId).then((v) => v[0]);
+      return getFromRedis<ExecutionResult>(responseId).then((v) => [v[0]]);
     },
     async invalidate(entitiesToRemove) {
       const invalidationKeys: string[] = [];
