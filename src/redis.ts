@@ -209,11 +209,11 @@ export const createRedisCache = (params: RedisCacheParameter): Cache => {
       responseIdLocks[responseId] = null;
     },
     async get(responseId) {
-      const [firstTry, redisOk] = await getFromRedis<ExecutionResult>(responseId);
+      const [firstTry, { ok, ttl }] = await getFromRedis<ExecutionResult>(responseId);
 
-      if (!redisOk) return [null];
+      if (!ok) return [null];
 
-      if (firstTry) return [firstTry];
+      if (firstTry) return [firstTry, { ttl }];
 
       if (!redLock) return [null];
 
@@ -242,7 +242,7 @@ export const createRedisCache = (params: RedisCacheParameter): Cache => {
       // If the lock was first attempt, skip the second get try, and go right to execute
       else if (lock?.attempts.length === 1) return [null];
 
-      return getFromRedis<ExecutionResult>(responseId).then((v) => [v[0]]);
+      return getFromRedis<ExecutionResult>(responseId).then((v) => [v[0], { ttl: v[1].ttl }]);
     },
     async invalidate(entitiesToRemove) {
       const invalidationKeys: string[] = [];
