@@ -1,11 +1,22 @@
 import type { ExecutionResult } from "graphql";
 import type { Redis } from "ioredis";
+import type { Logger } from "pino";
 import type RedLock from "redlock";
 import type { Lock, Settings } from "redlock";
 import type { Cache } from "./plugin";
 
 export type BuildRedisEntityId = (typename: string, id: number | string) => string;
 export type BuildRedisOperationResultCacheKey = (responseId: string) => string;
+
+export const RedisCacheEvents = {
+  REDIS_GET: "REDIS_GET",
+  REDIS_SET: "REDIS_SET",
+  INVALIDATE_KEY_SCAN: "INVALIDATE_KEY_SCAN",
+  INVALIDATED_KEYS: "INVALIDATED_KEYS",
+  CONCURRENT_CACHED_CALL_HIT: "CONCURRENT_CACHED_CALL_HIT",
+} as const;
+
+export type RedisCacheEvents = typeof RedisCacheEvents[keyof typeof RedisCacheEvents];
 
 export type RedisCacheParameter = {
   /**
@@ -41,25 +52,64 @@ export type RedisCacheParameter = {
    * @default false
    */
   debugTtl?: boolean;
+
+  /**
+   * Pino logger instance
+   */
+  logger: Logger;
+
+  /**
+   * Enable and/or customize events logs
+   */
+  logEvents?: Partial<Record<RedisCacheEvents, string | boolean | null>>;
 };
 
-function gracefullyFail(err: unknown) {
-  console.error(err);
-  return null;
-}
-
 export const createRedisCache = (params: RedisCacheParameter): Cache => {
-  const store = params.redis;
   const redLock = params.redlock?.client;
   const lockSettings = params.redlock?.settings;
   const lockDuration = params.redlock?.duration ?? 5000;
   const lockRetryDelay = params.redlock?.settings?.retryDelay ?? 250;
   const lockRetryCount = lockSettings?.retryCount ?? (lockDuration / lockRetryDelay) * 2;
-  const debugTtl = params.debugTtl ?? false;
+
+  const { logEvents, logger, debugTtl = false, redis: store } = params;
+
+  function gracefullyFail(err: unknown) {
+    logger.error(err);
+    return null;
+  }
 
   const buildRedisEntityId = params?.buildRedisEntityId ?? defaultBuildRedisEntityId;
   const buildRedisOperationResultCacheKey =
     params?.buildRedisOperationResultCacheKey ?? defaultBuildRedisOperationResultCacheKey;
+
+  function logMessage(
+    code: RedisCacheEvents,
+    paramsObject: Record<string, string | number | boolean | undefined>
+  ) {
+    let codeValue = logEvents?.[code];
+
+    if (!codeValue) return;
+
+    if (typeof codeValue !== "string") codeValue = RedisCacheEvents[code];
+
+    let params = "";
+
+    for (const key in paramsObject) {
+      const value = paramsObject[key];
+
+      if (value === undefined) continue;
+
+      params += " " + key + "=" + paramsObject[key];
+    }
+
+    logger.info(`[${codeValue}]${params}`);
+  }
+
+  function getTracing() {
+    const start = performance.now();
+
+    return () => `${(performance.now() - start).toFixed()}ms`;
+  }
 
   async function buildEntityInvalidationsKeys(entity: string): Promise<string[]> {
     const keysToInvalidate: string[] = [entity];
@@ -75,7 +125,18 @@ export const createRedisCache = (params: RedisCacheParameter): Cache => {
 
     // if invalidating an entity like Comment, then also invalidate Comment:1, Comment:2, etc
     if (!entity.includes(":")) {
-      const entityKeys = await store.keys(`${entity}:*`).catch(gracefullyFail);
+      const tracing = logEvents?.INVALIDATE_KEY_SCAN ? getTracing() : null;
+
+      const key = `${entity}:*`;
+      const entityKeys = await store.keys(key).catch(gracefullyFail);
+
+      if (tracing && entityKeys) {
+        logMessage("INVALIDATE_KEY_SCAN", {
+          key,
+          entityKeys: entityKeys.join(","),
+          time: tracing(),
+        });
+      }
       await Promise.all(
         (entityKeys || []).map(async (entityKey) => {
           // and invalidate any responses in each of those entity keys
@@ -103,6 +164,11 @@ export const createRedisCache = (params: RedisCacheParameter): Cache => {
     const concurrentLoadingValueCache = ConcurrentLoadingCache[key];
 
     if (concurrentLoadingValueCache) {
+      if (logEvents?.CONCURRENT_CACHED_CALL_HIT) {
+        logMessage("CONCURRENT_CACHED_CALL_HIT", {
+          key,
+        });
+      }
       return concurrentLoadingValueCache as Promise<Awaited<T>>;
     }
 
@@ -116,12 +182,24 @@ export const createRedisCache = (params: RedisCacheParameter): Cache => {
       let ok = true;
 
       if (debugTtl) {
+        const tracing = logEvents?.REDIS_GET ? getTracing() : null;
+
         const resultWithTtl = await store
           .pipeline()
           .get(responseId)
           .ttl(responseId)
           .exec()
           .catch(gracefullyFail);
+
+        if (tracing) {
+          const ttl = resultWithTtl?.[1]?.[1];
+          logMessage("REDIS_GET", {
+            key: responseId,
+            cache: resultWithTtl?.[0]?.[1] == null ? "MISS" : "HIT",
+            remainingTtl: typeof ttl === "number" ? ttl : "null",
+            time: tracing(),
+          });
+        }
 
         if (!resultWithTtl || !resultWithTtl[0] || !resultWithTtl[1]) {
           return [null, { ok: false, ttl: undefined }];
@@ -148,10 +226,20 @@ export const createRedisCache = (params: RedisCacheParameter): Cache => {
         return [null, { ok, ttl }];
       }
 
+      const tracing = logEvents?.REDIS_GET ? getTracing() : null;
+
       const result = await store.get(responseId).catch((err) => {
         ok = false;
         return gracefullyFail(err);
       });
+
+      if (tracing) {
+        logMessage("REDIS_GET", {
+          key: responseId,
+          cache: result == null ? "MISS" : "HIT",
+          time: tracing(),
+        });
+      }
 
       if (result != null) return [JSON.parse(result), { ok }];
 
@@ -170,6 +258,8 @@ export const createRedisCache = (params: RedisCacheParameter): Cache => {
     },
     async set(responseId, result, collectedEntities, ttl) {
       try {
+        const tracing = logEvents?.REDIS_SET ? getTracing() : null;
+
         const pipeline = store.pipeline();
 
         if (ttl === Infinity) {
@@ -197,6 +287,16 @@ export const createRedisCache = (params: RedisCacheParameter): Cache => {
         }
 
         await pipeline.exec().catch(gracefullyFail);
+
+        if (tracing) {
+          logMessage("REDIS_SET", {
+            responseKey,
+            collectedEntities: Array.from(collectedEntities)
+              .map(({ typename, id }) => (id != null ? buildRedisEntityId(typename, id) : typename))
+              .join(","),
+            ttl,
+          });
+        }
       } catch (err) {
         console.error(err);
       }
@@ -245,20 +345,36 @@ export const createRedisCache = (params: RedisCacheParameter): Cache => {
       return getFromRedis<ExecutionResult>(responseId).then((v) => [v[0], { ttl: v[1].ttl }]);
     },
     async invalidate(entitiesToRemove) {
+      const entitiesToRemoveList = Array.from(entitiesToRemove);
+
+      if (!entitiesToRemoveList.length) return;
+
       const invalidationKeys: string[] = [];
 
+      const tracing = logEvents?.INVALIDATED_KEYS ? getTracing() : null;
+
+      const invalidationEntitiesKey = entitiesToRemoveList.map(({ id, typename }) =>
+        id != null ? buildRedisEntityId(typename, id) : typename
+      );
+
       await Promise.all(
-        Array.from(entitiesToRemove).map(async ({ typename, id }) => {
-          invalidationKeys.push(
-            ...(await buildEntityInvalidationsKeys(
-              id != null ? buildRedisEntityId(typename, id) : typename
-            ))
-          );
+        invalidationEntitiesKey.map(async (key) => {
+          invalidationKeys.push(...(await buildEntityInvalidationsKeys(key)));
         })
       );
 
       if (invalidationKeys.length > 0) {
         await store.del(invalidationKeys).catch(gracefullyFail);
+      }
+
+      if (tracing) {
+        logMessage("INVALIDATED_KEYS", {
+          invalidatedEntitiesKeys: entitiesToRemoveList
+            .map((v) => (v.id != null ? (v.typename = ":" + v.id) : v.typename))
+            .join(","),
+          invalidatedKeys: invalidationKeys.join(",") || "null",
+          time: tracing(),
+        });
       }
     },
   };
