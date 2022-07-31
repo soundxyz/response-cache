@@ -1,5 +1,5 @@
 {
-  "name": "@soundxyz/response-cache",
+  "name": "@soundxyz/response-cache-debug",
   "version": "1.1.1",
   "description": "Heavily inspired by @envelop/response-cache",
   "keywords": [
@@ -74,12 +74,15 @@
     "redlock": "^5.0.0-beta.2"
   },
   "peerDependenciesMeta": {
-    "redlock": {
-      "optional": true
-    },
     "pino": {
       "optional": true
+    },
+    "redlock": {
+      "optional": true
     }
+  },
+  "publishConfig": {
+    "access": "public"
   },
   "pnpm": {
     "peerDependencyRules": {
