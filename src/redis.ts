@@ -5,11 +5,14 @@ import type RedLock from "redlock";
 import type { Lock, Settings } from "redlock";
 import type { Cache } from "./plugin";
 
+import { setTimeout } from "timers/promises";
+
 export type BuildRedisEntityId = (typename: string, id: number | string) => string;
 export type BuildRedisOperationResultCacheKey = (responseId: string) => string;
 
 export const RedisCacheEvents = {
   REDIS_GET: "REDIS_GET",
+  REDIS_GET_TIMED_OUT: "REDIS_GET_TIMED_OUT",
   REDIS_SET: "REDIS_SET",
   INVALIDATE_KEY_SCAN: "INVALIDATE_KEY_SCAN",
   INVALIDATED_KEYS: "INVALIDATED_KEYS",
@@ -60,9 +63,16 @@ export type RedisCacheParameter = {
 
   /**
    * Enable and/or customize events logs
+   *
+   * @default
+   *  { "REDIS_GET_TIMED_OUT": true }
    */
   logEvents?: Partial<Record<RedisCacheEvents, string | boolean | null>>;
+
+  redisGetTimeout?: number;
 };
+
+const RedisGetTimedOut = Symbol.for("RedisGetTimedOut");
 
 export const createRedisCache = (params: RedisCacheParameter): Cache => {
   const redLock = params.redlock?.client;
@@ -71,7 +81,7 @@ export const createRedisCache = (params: RedisCacheParameter): Cache => {
   const lockRetryDelay = params.redlock?.settings?.retryDelay ?? 250;
   const lockRetryCount = lockSettings?.retryCount ?? (lockDuration / lockRetryDelay) * 2;
 
-  const { logEvents, logger, debugTtl = false, redis: store } = params;
+  const { logEvents, logger, debugTtl = false, redis: store, redisGetTimeout } = params;
 
   function gracefullyFail(err: unknown) {
     logger.error(err);
@@ -181,24 +191,44 @@ export const createRedisCache = (params: RedisCacheParameter): Cache => {
     return ConcurrentCachedCall<[T | null, { ok: boolean; ttl?: number }]>(responseId, async () => {
       let ok = true;
 
+      let timedOut = false;
+
       if (debugTtl) {
         const tracing = logEvents?.REDIS_GET ? getTracing() : null;
 
-        const resultWithTtl = await store
+        const redisGetPromise = store
           .pipeline()
           .get(responseId)
           .ttl(responseId)
           .exec()
+          .then((value) => {
+            if (tracing) {
+              const ttl = value?.[1]?.[1];
+              logMessage("REDIS_GET", {
+                key: responseId,
+                cache: value?.[0]?.[1] == null ? "MISS" : "HIT",
+                timedOut,
+                remainingTtl: typeof ttl === "number" ? ttl : "null",
+                time: tracing(),
+              });
+            }
+            return value;
+          })
           .catch(gracefullyFail);
 
-        if (tracing) {
-          const ttl = resultWithTtl?.[1]?.[1];
-          logMessage("REDIS_GET", {
-            key: responseId,
-            cache: resultWithTtl?.[0]?.[1] == null ? "MISS" : "HIT",
-            remainingTtl: typeof ttl === "number" ? ttl : "null",
-            time: tracing(),
-          });
+        const resultWithTtl = await (redisGetTimeout != null
+          ? Promise.race([redisGetPromise, setTimeout(redisGetTimeout, RedisGetTimedOut)])
+          : redisGetPromise);
+
+        if (resultWithTtl === RedisGetTimedOut) {
+          timedOut = true;
+          if (logEvents?.REDIS_GET_TIMED_OUT ?? true) {
+            logMessage("REDIS_GET_TIMED_OUT", {
+              key: responseId,
+              timeout: redisGetTimeout,
+            });
+          }
+          return [null, { ok: false, ttl: undefined }];
         }
 
         if (!resultWithTtl || !resultWithTtl[0] || !resultWithTtl[1]) {
@@ -228,17 +258,39 @@ export const createRedisCache = (params: RedisCacheParameter): Cache => {
 
       const tracing = logEvents?.REDIS_GET ? getTracing() : null;
 
-      const result = await store.get(responseId).catch((err) => {
-        ok = false;
-        return gracefullyFail(err);
-      });
+      const redisGetPromise = store
+        .get(responseId)
+        .then((value) => {
+          if (tracing) {
+            logMessage("REDIS_GET", {
+              key: responseId,
+              cache: value == null ? "MISS" : "HIT",
+              timedOut,
+              time: tracing(),
+            });
+          }
 
-      if (tracing) {
-        logMessage("REDIS_GET", {
-          key: responseId,
-          cache: result == null ? "MISS" : "HIT",
-          time: tracing(),
+          return value;
+        })
+        .catch((err) => {
+          ok = false;
+          return gracefullyFail(err);
         });
+
+      const result = await (redisGetTimeout != null
+        ? Promise.race([redisGetPromise, setTimeout(redisGetTimeout, RedisGetTimedOut)])
+        : redisGetPromise);
+
+      if (result === RedisGetTimedOut) {
+        timedOut = true;
+        if (logEvents?.REDIS_GET_TIMED_OUT ?? true) {
+          logMessage("REDIS_GET_TIMED_OUT", {
+            key: responseId,
+            timeout: redisGetTimeout,
+          });
+        }
+
+        return [null, { ok: false }];
       }
 
       if (result != null) return [JSON.parse(result), { ok }];
