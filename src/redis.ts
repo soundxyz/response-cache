@@ -193,9 +193,10 @@ export const createRedisCache = (params: RedisCacheParameter): Cache => {
 
       let timedOut = false;
 
-      if (debugTtl) {
-        const tracing = logEvents?.REDIS_GET ? getTracing() : null;
+      const tracing =
+        logEvents?.REDIS_GET || (logEvents?.REDIS_GET_TIMED_OUT ?? true) ? getTracing() : null;
 
+      if (debugTtl) {
         const redisGetPromise = store
           .pipeline()
           .get(responseId)
@@ -226,6 +227,7 @@ export const createRedisCache = (params: RedisCacheParameter): Cache => {
             logMessage("REDIS_GET_TIMED_OUT", {
               key: responseId,
               timeout: redisGetTimeout,
+              time: tracing?.(),
             });
           }
           return [null, { ok: false, ttl: undefined }];
@@ -256,8 +258,6 @@ export const createRedisCache = (params: RedisCacheParameter): Cache => {
         return [null, { ok, ttl }];
       }
 
-      const tracing = logEvents?.REDIS_GET ? getTracing() : null;
-
       const redisGetPromise = store
         .get(responseId)
         .then((value) => {
@@ -287,6 +287,7 @@ export const createRedisCache = (params: RedisCacheParameter): Cache => {
           logMessage("REDIS_GET_TIMED_OUT", {
             key: responseId,
             timeout: redisGetTimeout,
+            time: tracing?.(),
           });
         }
 
