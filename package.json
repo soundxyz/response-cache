@@ -76,6 +76,9 @@
       "optional": true
     }
   },
+  "engines": {
+    "node": ">=16"
+  },
   "pnpm": {
     "peerDependencyRules": {
       "allowedVersions": {
