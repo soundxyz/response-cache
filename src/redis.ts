@@ -2,10 +2,28 @@ import type { ExecutionResult } from "graphql";
 import type { Redis } from "ioredis";
 import type RedLock from "redlock";
 import type { Lock, Settings } from "redlock";
+import { setTimeout as timersSetTimeout } from "timers/promises";
 import type { Cache } from "./plugin";
 
 export type BuildRedisEntityId = (typename: string, id: number | string) => string;
 export type BuildRedisOperationResultCacheKey = (responseId: string) => string;
+
+export const Events = {
+  REDIS_GET: "REDIS_GET",
+  REDIS_GET_TIMED_OUT: "REDIS_GET_TIMED_OUT",
+  REDIS_SET: "REDIS_SET",
+  INVALIDATE_KEY_SCAN: "INVALIDATE_KEY_SCAN",
+  INVALIDATED_KEYS: "INVALIDATED_KEYS",
+  CONCURRENT_CACHED_CALL_HIT: "CONCURRENT_CACHED_CALL_HIT",
+} as const;
+
+export type Events = typeof Events[keyof typeof Events];
+
+export type LogEventArgs = { message: string; code: Events; params: EventParamsObject };
+
+export type LoggedEvents = Partial<Record<Events, string | boolean | null>>;
+
+export type EventParamsObject = Record<string, string | number | boolean | null | undefined>;
 
 export type RedisCacheParameter = {
   /**
@@ -41,25 +59,78 @@ export type RedisCacheParameter = {
    * @default false
    */
   debugTtl?: boolean;
+
+  /**
+   * Enable event logging
+   */
+  logEvents?: {
+    log: (args: LogEventArgs) => void;
+
+    events: LoggedEvents;
+  };
+
+  /**
+   * Set a maximum amount of milliseconds for redis gets to wait for the GET redis response
+   */
+  GETRedisTimeout?: number;
+
+  onError?: (err: unknown) => void;
 };
 
-function gracefullyFail(err: unknown) {
-  console.error(err);
-  return null;
-}
-
-export const createRedisCache = (params: RedisCacheParameter): Cache => {
-  const store = params.redis;
-  const redLock = params.redlock?.client;
-  const lockSettings = params.redlock?.settings;
-  const lockDuration = params.redlock?.duration ?? 5000;
-  const lockRetryDelay = params.redlock?.settings?.retryDelay ?? 250;
+export const createRedisCache = ({
+  redis: store,
+  redlock,
+  debugTtl = false,
+  logEvents,
+  buildRedisEntityId = defaultBuildRedisEntityId,
+  buildRedisOperationResultCacheKey = defaultBuildRedisOperationResultCacheKey,
+  GETRedisTimeout,
+  onError = console.error,
+}: RedisCacheParameter): Cache => {
+  const redLock = redlock?.client;
+  const lockSettings = redlock?.settings;
+  const lockDuration = redlock?.duration ?? 5000;
+  const lockRetryDelay = redlock?.settings?.retryDelay ?? 250;
   const lockRetryCount = lockSettings?.retryCount ?? (lockDuration / lockRetryDelay) * 2;
-  const debugTtl = params.debugTtl ?? false;
 
-  const buildRedisEntityId = params?.buildRedisEntityId ?? defaultBuildRedisEntityId;
-  const buildRedisOperationResultCacheKey =
-    params?.buildRedisOperationResultCacheKey ?? defaultBuildRedisOperationResultCacheKey;
+  function gracefullyFail(err: unknown) {
+    onError(err);
+    return null;
+  }
+
+  function getTracing() {
+    const start = performance.now();
+
+    return () => `${(performance.now() - start).toFixed()}ms`;
+  }
+
+  const enabledLogEvents = logEvents?.events;
+
+  const logMessage = logEvents
+    ? function logMessage(code: Events, params: EventParamsObject) {
+        let codeValue = logEvents.events[code];
+
+        if (!codeValue) return;
+
+        if (typeof codeValue !== "string") codeValue = Events[code];
+
+        let paramsString = "";
+
+        for (const key in params) {
+          const value = params[key];
+
+          if (value === undefined) continue;
+
+          paramsString += " " + key + "=" + params[key];
+        }
+
+        logEvents.log({
+          code,
+          message: `[${codeValue}]${paramsString}`,
+          params,
+        });
+      }
+    : () => void 0;
 
   async function buildEntityInvalidationsKeys(entity: string): Promise<string[]> {
     const keysToInvalidate: string[] = [entity];
@@ -75,7 +146,18 @@ export const createRedisCache = (params: RedisCacheParameter): Cache => {
 
     // if invalidating an entity like Comment, then also invalidate Comment:1, Comment:2, etc
     if (!entity.includes(":")) {
-      const entityKeys = await store.keys(`${entity}:*`).catch(gracefullyFail);
+      const tracing = enabledLogEvents?.INVALIDATE_KEY_SCAN ? getTracing() : null;
+
+      const key = `${entity}:*`;
+      const entityKeys = await store.keys(key).catch(gracefullyFail);
+
+      if (tracing && entityKeys) {
+        logMessage("INVALIDATE_KEY_SCAN", {
+          key,
+          entityKeys: entityKeys.join(",") || "null",
+          time: tracing(),
+        });
+      }
       await Promise.all(
         (entityKeys || []).map(async (entityKey) => {
           // and invalidate any responses in each of those entity keys
@@ -103,6 +185,11 @@ export const createRedisCache = (params: RedisCacheParameter): Cache => {
     const concurrentLoadingValueCache = ConcurrentLoadingCache[key];
 
     if (concurrentLoadingValueCache) {
+      if (enabledLogEvents?.CONCURRENT_CACHED_CALL_HIT) {
+        logMessage("CONCURRENT_CACHED_CALL_HIT", {
+          key,
+        });
+      }
       return concurrentLoadingValueCache as Promise<Awaited<T>>;
     }
 
@@ -115,13 +202,49 @@ export const createRedisCache = (params: RedisCacheParameter): Cache => {
     return ConcurrentCachedCall<[T | null, { ok: boolean; ttl?: number }]>(responseId, async () => {
       let ok = true;
 
+      let timedOut: true | undefined;
+
+      const tracing =
+        enabledLogEvents?.REDIS_GET || (enabledLogEvents?.REDIS_GET_TIMED_OUT ?? true)
+          ? getTracing()
+          : null;
+
       if (debugTtl) {
-        const resultWithTtl = await store
+        const redisGetPromise = store
           .pipeline()
           .get(responseId)
           .ttl(responseId)
           .exec()
+          .then((value) => {
+            if (enabledLogEvents?.REDIS_GET) {
+              const ttl = value?.[1]?.[1];
+              logMessage("REDIS_GET", {
+                key: responseId,
+                cache: value?.[0]?.[1] == null ? "MISS" : "HIT",
+                timedOut,
+                remainingTtl: typeof ttl === "number" ? ttl : "null",
+                time: tracing?.(),
+              });
+            }
+            return value;
+          })
           .catch(gracefullyFail);
+
+        const resultWithTtl = await (GETRedisTimeout != null
+          ? Promise.race([redisGetPromise, timersSetTimeout(GETRedisTimeout, undefined)])
+          : redisGetPromise);
+
+        if (resultWithTtl === undefined) {
+          timedOut = true;
+          if (enabledLogEvents?.REDIS_GET_TIMED_OUT ?? true) {
+            logMessage("REDIS_GET_TIMED_OUT", {
+              key: responseId,
+              timeout: GETRedisTimeout,
+              time: tracing?.(),
+            });
+          }
+          return [null, { ok: false, ttl: undefined }];
+        }
 
         if (!resultWithTtl || !resultWithTtl[0] || !resultWithTtl[1]) {
           return [null, { ok: false, ttl: undefined }];
@@ -148,10 +271,41 @@ export const createRedisCache = (params: RedisCacheParameter): Cache => {
         return [null, { ok, ttl }];
       }
 
-      const result = await store.get(responseId).catch((err) => {
-        ok = false;
-        return gracefullyFail(err);
-      });
+      const redisGetPromise = store
+        .get(responseId)
+        .then((value) => {
+          if (enabledLogEvents?.REDIS_GET) {
+            logMessage("REDIS_GET", {
+              key: responseId,
+              cache: value == null ? "MISS" : "HIT",
+              timedOut,
+              time: tracing?.(),
+            });
+          }
+
+          return value;
+        })
+        .catch((err) => {
+          ok = false;
+          return gracefullyFail(err);
+        });
+
+      const result = await (GETRedisTimeout != null
+        ? Promise.race([redisGetPromise, timersSetTimeout(GETRedisTimeout, undefined)])
+        : redisGetPromise);
+
+      if (result === undefined) {
+        timedOut = true;
+        if (enabledLogEvents?.REDIS_GET_TIMED_OUT) {
+          logMessage("REDIS_GET_TIMED_OUT", {
+            key: responseId,
+            timeout: GETRedisTimeout,
+            time: tracing?.(),
+          });
+        }
+
+        return [null, { ok: false }];
+      }
 
       if (result != null) return [JSON.parse(result), { ok }];
 
@@ -170,6 +324,8 @@ export const createRedisCache = (params: RedisCacheParameter): Cache => {
     },
     async set(responseId, result, collectedEntities, ttl) {
       try {
+        const tracing = enabledLogEvents?.REDIS_SET ? getTracing() : null;
+
         const pipeline = store.pipeline();
 
         if (ttl === Infinity) {
@@ -197,6 +353,16 @@ export const createRedisCache = (params: RedisCacheParameter): Cache => {
         }
 
         await pipeline.exec().catch(gracefullyFail);
+
+        if (tracing) {
+          logMessage("REDIS_SET", {
+            responseKey,
+            collectedEntities: Array.from(collectedEntities)
+              .map(({ typename, id }) => (id != null ? buildRedisEntityId(typename, id) : typename))
+              .join(","),
+            ttl,
+          });
+        }
       } catch (err) {
         console.error(err);
       }
@@ -245,20 +411,36 @@ export const createRedisCache = (params: RedisCacheParameter): Cache => {
       return getFromRedis<ExecutionResult>(responseId).then((v) => [v[0], { ttl: v[1].ttl }]);
     },
     async invalidate(entitiesToRemove) {
+      const entitiesToRemoveList = Array.from(entitiesToRemove);
+
+      if (!entitiesToRemoveList.length) return;
+
       const invalidationKeys: string[] = [];
 
+      const tracing = enabledLogEvents?.INVALIDATED_KEYS ? getTracing() : null;
+
+      const invalidationEntitiesKey = entitiesToRemoveList.map(({ id, typename }) =>
+        id != null ? buildRedisEntityId(typename, id) : typename
+      );
+
       await Promise.all(
-        Array.from(entitiesToRemove).map(async ({ typename, id }) => {
-          invalidationKeys.push(
-            ...(await buildEntityInvalidationsKeys(
-              id != null ? buildRedisEntityId(typename, id) : typename
-            ))
-          );
+        invalidationEntitiesKey.map(async (key) => {
+          invalidationKeys.push(...(await buildEntityInvalidationsKeys(key)));
         })
       );
 
       if (invalidationKeys.length > 0) {
         await store.del(invalidationKeys).catch(gracefullyFail);
+      }
+
+      if (tracing) {
+        logMessage("INVALIDATED_KEYS", {
+          invalidatedEntitiesKeys: entitiesToRemoveList
+            .map((v) => (v.id != null ? (v.typename = ":" + v.id) : v.typename))
+            .join(","),
+          invalidatedKeys: invalidationKeys.join(",") || "null",
+          time: tracing(),
+        });
       }
     },
   };
