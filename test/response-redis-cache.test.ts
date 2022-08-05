@@ -2,27 +2,41 @@
 
 import { createTestkit } from "@envelop/testing";
 import { makeExecutableSchema } from "@graphql-tools/schema";
+import { createDeferredPromise } from "graphql-ez";
 import { setTimeout } from "timers/promises";
 import { inspect } from "util";
-import { beforeEach, describe, expect, test, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import {
   createRedisCache,
   defaultBuildRedisEntityId,
   defaultBuildRedisOperationResultCacheKey,
+  LogEventArgs,
 } from "../src";
 import { ResponseCacheContext, useResponseCache } from "../src/plugin/index";
-import { GetRedisInstanceServer } from "./utils";
+import { GetRedisInstanceServer, logEverything } from "./utils";
 
 inspect.defaultOptions.depth = 10;
 
 const redis = await GetRedisInstanceServer();
 
 describe("useResponseCache with Redis cache", () => {
-  const cache = createRedisCache({ redis });
+  const events: LogEventArgs[] = [];
+  const cache = createRedisCache({
+    redis,
+    logEvents: {
+      log: (args) => events.push(args),
+      events: logEverything,
+    },
+  });
 
   beforeEach(async () => {
     vi.useRealTimers();
     await redis.flushall();
+    events.splice(0, events.length);
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
   });
 
   test("should create a default entity id with a number id", () => {
@@ -197,6 +211,14 @@ describe("useResponseCache with Redis cache", () => {
     await testInstance.execute(query);
 
     expect(spy).toHaveBeenCalledTimes(2);
+
+    expect(events.map((v) => v.code)).toStrictEqual([
+      "REDIS_GET",
+      "REDIS_SET",
+      "REDIS_GET",
+      "INVALIDATED_KEYS",
+      "REDIS_GET",
+    ]);
   }, 5000);
 
   test("should purge cache on demand (typename+id)", async () => {
@@ -1288,5 +1310,84 @@ describe("useResponseCache with Redis cache", () => {
     // the result is already cached
     await testInstance.execute(query);
     expect(spy).toHaveBeenCalledTimes(3);
+  });
+
+  test("timeout with events logged", async () => {
+    const continueGet = createDeferredPromise();
+
+    const getIsDone = createDeferredPromise();
+
+    const redisGet = redis.get;
+
+    vi.spyOn(redis, "get").mockImplementationOnce(async (...args: any[]) => {
+      await continueGet.promise;
+
+      const result = await redisGet.call(
+        redis,
+        // @ts-expect-error
+        ...args
+      );
+
+      getIsDone.resolve();
+
+      return result;
+    });
+
+    const schema = makeExecutableSchema({
+      typeDefs: /* GraphQL */ `
+        type Query {
+          hello: String!
+        }
+      `,
+      resolvers: {
+        Query: {
+          async hello() {
+            return "Hello World";
+          },
+        },
+      },
+    });
+
+    const testInstance = createTestkit(
+      [
+        useResponseCache({
+          cache: createRedisCache({
+            redis,
+            logEvents: {
+              log: (args) => events.push(args),
+              events: logEverything,
+            },
+            GETRedisTimeout: 0,
+          }),
+          ttl: 500,
+          ttlPerType: {
+            User: 200,
+          },
+        }),
+      ],
+      schema
+    );
+
+    const result = await testInstance.execute("{hello}");
+
+    expect(result).toMatchInlineSnapshot(`
+      {
+        "data": {
+          "hello": "Hello World",
+        },
+      }
+    `);
+
+    await setTimeout(10);
+
+    continueGet.resolve();
+
+    await getIsDone.promise;
+
+    expect(events.map((v) => v.code)).toStrictEqual([
+      "REDIS_GET_TIMED_OUT",
+      "REDIS_SET",
+      "REDIS_GET",
+    ]);
   });
 });

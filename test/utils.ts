@@ -1,6 +1,16 @@
 import IORedis from "ioredis";
 import { RedisMemoryServer } from "redis-memory-server";
 import { afterAll } from "vitest";
+import type { LoggedEvents } from "../src";
+
+export const logEverything: Required<LoggedEvents> = {
+  CONCURRENT_CACHED_CALL_HIT: true,
+  INVALIDATE_KEY_SCAN: true,
+  INVALIDATED_KEYS: true,
+  REDIS_GET: true,
+  REDIS_GET_TIMED_OUT: true,
+  REDIS_SET: true,
+};
 
 const servers: Array<RedisMemoryServer> = [];
 

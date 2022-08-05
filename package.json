@@ -40,7 +40,8 @@
   },
   "dependencies": {
     "@graphql-tools/utils": "^8.6.13",
-    "fast-json-stable-stringify": "^2.1.0"
+    "fast-json-stable-stringify": "^2.1.0",
+    "pino": "^8.3.1"
   },
   "devDependencies": {
     "@changesets/cli": "^2.22.0",

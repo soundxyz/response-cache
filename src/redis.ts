@@ -318,7 +318,7 @@ export const createRedisCache = ({
       const lock = responseIdLocks[responseId];
 
       if (lock) {
-        lock.release().catch(console.error);
+        lock.release().catch(() => null);
         responseIdLocks[responseId] = null;
       }
     },
@@ -364,14 +364,14 @@ export const createRedisCache = ({
           });
         }
       } catch (err) {
-        console.error(err);
+        onError(err);
       }
 
       const lock = responseIdLocks[responseId];
 
       if (!lock) return;
 
-      lock.release().catch(console.error);
+      lock.release().catch(() => null);
       responseIdLocks[responseId] = null;
     },
     async get(responseId) {
@@ -397,14 +397,11 @@ export const createRedisCache = ({
 
             return lock;
           },
-          (err) => {
-            console.error(err);
-            return null;
-          }
+          () => null
         );
 
       // Any lock that took more than 1 attempt should be released right away for the other readers
-      if (lock && lock.attempts.length > 1) lock.release().catch(console.error);
+      if (lock && lock.attempts.length > 1) lock.release().catch(() => null);
       // If the lock was first attempt, skip the second get try, and go right to execute
       else if (lock?.attempts.length === 1) return [null];
 
