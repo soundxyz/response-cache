@@ -22,7 +22,9 @@ export type Cache = {
     ttl: number
   ): PromiseOrValue<void>;
   /** get a cached response */
-  get(id: string): PromiseOrValue<[Maybe<ExecutionResult>, ({ ttl?: number } | undefined)?]>;
+  get(
+    id: string
+  ): PromiseOrValue<readonly [Maybe<ExecutionResult>, ({ ttl?: number } | undefined)?]>;
   /** invalidate operations via typename or id */
   invalidate(entities: Iterable<CacheEntityRecord>): PromiseOrValue<void>;
   /** Function to be called when the operation couldn't be cached, by default, if the execution had errors */

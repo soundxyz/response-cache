@@ -10,6 +10,9 @@ export const logEverything: Required<LoggedEvents> = {
   REDIS_GET: true,
   REDIS_GET_TIMED_OUT: true,
   REDIS_SET: true,
+  REDLOCK_ACQUIRED: true,
+  REDLOCK_GET_AFTER_ACQUIRE: true,
+  REDLOCK_RELEASED: true,
 };
 
 const servers: Array<RedisMemoryServer> = [];

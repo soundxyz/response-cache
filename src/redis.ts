@@ -15,6 +15,9 @@ export const Events = {
   INVALIDATE_KEY_SCAN: "INVALIDATE_KEY_SCAN",
   INVALIDATED_KEYS: "INVALIDATED_KEYS",
   CONCURRENT_CACHED_CALL_HIT: "CONCURRENT_CACHED_CALL_HIT",
+  REDLOCK_ACQUIRED: "REDLOCK_ACQUIRED",
+  REDLOCK_RELEASED: "REDLOCK_RELEASED",
+  REDLOCK_GET_AFTER_ACQUIRE: "REDLOCK_GET_AFTER_ACQUIRE",
 } as const;
 
 export type Events = typeof Events[keyof typeof Events];
@@ -318,7 +321,20 @@ export const createRedisCache = ({
       const lock = responseIdLocks[responseId];
 
       if (lock) {
-        lock.release().catch(() => null);
+        const tracing = enabledLogEvents?.REDLOCK_RELEASED ? getTracing() : null;
+
+        lock
+          .release()
+          .then(({ attempts }) => {
+            if (tracing) {
+              logMessage("REDLOCK_RELEASED", {
+                key: responseId,
+                attempts: attempts.length,
+                time: tracing(),
+              });
+            }
+          })
+          .catch(() => null);
         responseIdLocks[responseId] = null;
       }
     },
@@ -371,7 +387,19 @@ export const createRedisCache = ({
 
       if (!lock) return;
 
-      lock.release().catch(() => null);
+      const tracing = enabledLogEvents?.REDLOCK_RELEASED ? getTracing() : null;
+      lock
+        .release()
+        .then(({ attempts }) => {
+          if (tracing) {
+            logMessage("REDLOCK_RELEASED", {
+              key: responseId,
+              attempts: attempts.length,
+              time: tracing(),
+            });
+          }
+        })
+        .catch(() => null);
       responseIdLocks[responseId] = null;
     },
     async get(responseId) {
@@ -383,6 +411,8 @@ export const createRedisCache = ({
 
       if (!redLock) return [null];
 
+      const tracing = enabledLogEvents?.REDLOCK_ACQUIRED ? getTracing() : null;
+
       const lock = await redLock
         .acquire(["lock:" + responseId], lockDuration, {
           ...lockSettings,
@@ -391,6 +421,14 @@ export const createRedisCache = ({
         })
         .then(
           (lock) => {
+            if (tracing) {
+              logMessage("REDLOCK_ACQUIRED", {
+                key: responseId,
+                attempts: lock.attempts.length,
+                time: tracing(),
+              });
+            }
+
             if (lock.attempts.length === 1) {
               return (responseIdLocks[responseId] = lock);
             }
@@ -401,11 +439,42 @@ export const createRedisCache = ({
         );
 
       // Any lock that took more than 1 attempt should be released right away for the other readers
-      if (lock && lock.attempts.length > 1) lock.release().catch(() => null);
+      if (lock && lock.attempts.length > 1) {
+        const tracing = enabledLogEvents?.REDLOCK_RELEASED ? getTracing() : null;
+
+        lock
+          .release()
+          .then(({ attempts }) => {
+            if (tracing) {
+              logMessage("REDLOCK_RELEASED", {
+                key: responseId,
+                attempts: attempts.length,
+                time: tracing(),
+              });
+            }
+          })
+          .catch(() => null);
+      }
       // If the lock was first attempt, skip the second get try, and go right to execute
       else if (lock?.attempts.length === 1) return [null];
 
-      return getFromRedis<ExecutionResult>(responseId).then((v) => [v[0], { ttl: v[1].ttl }]);
+      {
+        const tracing = enabledLogEvents?.REDLOCK_GET_AFTER_ACQUIRE ? getTracing() : null;
+
+        const getAfterLock = await getFromRedis<ExecutionResult>(responseId).then(
+          (v) => [v[0], { ttl: v[1].ttl }] as const
+        );
+
+        if (tracing) {
+          logMessage("REDLOCK_GET_AFTER_ACQUIRE", {
+            key: responseId,
+            cache: getAfterLock[0] != null ? "HIT" : "MISS",
+            time: tracing(),
+          });
+        }
+
+        return getAfterLock;
+      }
     },
     async invalidate(entitiesToRemove) {
       const entitiesToRemoveList = Array.from(entitiesToRemove);
