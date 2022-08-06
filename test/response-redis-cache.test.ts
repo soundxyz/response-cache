@@ -212,12 +212,12 @@ describe("useResponseCache with Redis cache", () => {
 
     expect(spy).toHaveBeenCalledTimes(2);
 
-    expect(events.map((v) => v.code)).toStrictEqual([
-      "REDIS_GET",
-      "REDIS_SET",
-      "REDIS_GET",
+    expect(events.map((v) => v.code).sort()).toStrictEqual([
       "INVALIDATED_KEYS",
       "REDIS_GET",
+      "REDIS_GET",
+      "REDIS_GET",
+      "REDIS_SET",
     ]);
   }, 5000);
 
