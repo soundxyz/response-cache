@@ -120,11 +120,13 @@ export const createRedisCache = ({
         let paramsString = "";
 
         for (const key in params) {
-          const value = params[key];
+          let value = params[key];
 
           if (value === undefined) continue;
 
-          paramsString += " " + key + "=" + params[key];
+          if (value === "") value = "null";
+
+          paramsString += " " + key + "=" + value;
         }
 
         logEvents.log({
