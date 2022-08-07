@@ -1,5 +1,16 @@
 # @soundxyz/response-cache
 
+## 2.0.0
+
+### Major Changes
+
+- b16d035: Minimum version of Node.js is v16
+
+### Minor Changes
+
+- b16d035: New "GETRedisTimeout" option to set a maximum amount of milliseconds to wait for the GET redis responses
+- b16d035: New "logEvents" option to enable observability of events
+
 ## 1.1.1
 
 ### Minor Changes
