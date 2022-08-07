@@ -1,5 +1,11 @@
 # @soundxyz/response-cache
 
+## 2.0.1
+
+### Patch Changes
+
+- 7f10b84: Never log empty param string, fallback to "null"
+
 ## 2.0.0
 
 ### Major Changes
