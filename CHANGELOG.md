@@ -1,5 +1,15 @@
 # @soundxyz/response-cache
 
+## 2.1.0
+
+### Minor Changes
+
+- 446f3fc: logEvents.events accepts custom log functions for specific events
+
+### Patch Changes
+
+- 446f3fc: logEvents.log is now optional (console.log default fallback)
+
 ## 2.0.1
 
 ### Patch Changes
