@@ -19,7 +19,7 @@ specifiers:
   graphql-ez: ^0.15.1
   ioredis: ^5.2.2
   pino: ^8.8.0
-  prettier: ^2.7.1
+  prettier: ^2.8.1
   redis-memory-server: ^0.6.0
   redlock: 5.0.0-beta.2
   typescript: ^4.7.4
@@ -47,7 +47,7 @@ devDependencies:
   graphql-ez: 0.15.1_c4va7fuwlgwlze7hxhdsm2p7nu
   ioredis: 5.2.2
   pino: 8.8.0
-  prettier: 2.7.1
+  prettier: 2.8.1
   redis-memory-server: 0.6.0
   redlock: 5.0.0-beta.2
   typescript: 4.7.4
@@ -101,7 +101,7 @@ packages:
       fs-extra: 7.0.1
       lodash.startcase: 4.4.0
       outdent: 0.5.0
-      prettier: 2.7.1
+      prettier: 2.8.1
       resolve-from: 5.0.0
       semver: 5.7.1
     dev: true
@@ -268,7 +268,7 @@ packages:
       '@changesets/types': 5.2.0
       fs-extra: 7.0.1
       human-id: 1.0.2
-      prettier: 2.7.1
+      prettier: 2.8.1
     dev: true
 
   /@envelop/core/2.4.2_graphql@17.0.0-alpha.1:
@@ -2564,8 +2564,8 @@ packages:
       which-pm: 2.0.0
     dev: true
 
-  /prettier/2.7.1:
-    resolution: {integrity: sha512-ujppO+MkdPqoVINuDFDRLClm7D78qbDt0/NR+wp5FqEZOoTNAjPHWj17QRhu7geIHJfcNhRk1XVQmF8Bp3ye+g==}
+  /prettier/2.8.1:
+    resolution: {integrity: sha512-lqGoSJBQNJidqCHE80vqZJHWHRFoNYsSpP9AjFhlhi9ODCJA541svILes/+/1GM3VaL/abZi7cpFzOpdR9UPKg==}
     engines: {node: '>=10.13.0'}
     hasBin: true
     dev: true
