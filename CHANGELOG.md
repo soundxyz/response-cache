@@ -1,5 +1,11 @@
 # @soundxyz/response-cache
 
+## 2.2.0
+
+### Minor Changes
+
+- 3572893: concurrencyLimit option, by default 20. Used by "invalidate" function
+
 ## 2.1.0
 
 ### Minor Changes
