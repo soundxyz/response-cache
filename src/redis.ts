@@ -4,6 +4,7 @@ import type RedLock from "redlock";
 import type { Lock, Settings } from "redlock";
 import { setTimeout as timersSetTimeout } from "timers/promises";
 import type { Cache } from "./plugin";
+import { chunk } from "./utils";
 
 export type BuildRedisEntityId = (typename: string, id: number | string) => string;
 export type BuildRedisOperationResultCacheKey = (responseId: string) => string;
@@ -87,6 +88,11 @@ export type RedisCacheParameter = {
   GETRedisTimeout?: number;
 
   onError?: (err: unknown) => void;
+
+  /**
+   * @default 20
+   */
+  concurrencyLimit?: number;
 };
 
 export const createRedisCache = ({
@@ -98,6 +104,7 @@ export const createRedisCache = ({
   buildRedisOperationResultCacheKey = defaultBuildRedisOperationResultCacheKey,
   GETRedisTimeout,
   onError = console.error,
+  concurrencyLimit = 20,
 }: RedisCacheParameter): Cache => {
   const redLock = redlock?.client;
   const lockSettings = redlock?.settings;
@@ -502,14 +509,22 @@ export const createRedisCache = ({
         id != null ? buildRedisEntityId(typename, id) : typename
       );
 
-      await Promise.all(
-        invalidationEntitiesKey.map(async (key) => {
-          invalidationKeys.push(...(await buildEntityInvalidationsKeys(key)));
-        })
-      );
+      const chunksInvalidationEntities = chunk(invalidationEntitiesKey, concurrencyLimit);
+
+      for (const chunk of chunksInvalidationEntities) {
+        await Promise.all(
+          chunk.map(async (key) => {
+            invalidationKeys.push(...(await buildEntityInvalidationsKeys(key)));
+          })
+        );
+      }
 
       if (invalidationKeys.length > 0) {
-        await store.del(invalidationKeys).catch(gracefullyFail);
+        const invalidationKeysChunks = chunk(invalidationKeys, concurrencyLimit);
+
+        for (const chunk of invalidationKeysChunks) {
+          await store.del(chunk).catch(gracefullyFail);
+        }
       }
 
       if (tracing) {
