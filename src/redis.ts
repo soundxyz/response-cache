@@ -90,7 +90,7 @@ export type RedisCacheParameter = {
   onError?: (err: unknown) => void;
 
   /**
-   * @default 10
+   * @default 20
    */
   concurrencyLimit?: number;
 };
@@ -104,7 +104,7 @@ export const createRedisCache = ({
   buildRedisOperationResultCacheKey = defaultBuildRedisOperationResultCacheKey,
   GETRedisTimeout,
   onError = console.error,
-  concurrencyLimit = 10,
+  concurrencyLimit = 20,
 }: RedisCacheParameter): Cache => {
   const redLock = redlock?.client;
   const lockSettings = redlock?.settings;
