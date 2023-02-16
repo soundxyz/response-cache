@@ -1,5 +1,11 @@
 # @soundxyz/response-cache
 
+## 2.2.1
+
+### Patch Changes
+
+- bd42e6e: Include GraphQL Errors on "Failed to cache due to errors"
+
 ## 2.2.0
 
 ### Minor Changes
