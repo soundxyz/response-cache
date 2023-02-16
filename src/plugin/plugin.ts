@@ -145,7 +145,7 @@ export const defaultBuildResponseCacheKey: BuildResponseCacheKeyFunction = (para
 export const defaultShouldCacheResult: ShouldCacheResultFunction = (params): Boolean => {
   if (params.result.errors) {
     // eslint-disable-next-line no-console
-    console.warn("[useResponseCache] Failed to cache due to errors");
+    console.warn("[useResponseCache] Failed to cache due to errors", params.result.errors);
     return false;
   }
 
