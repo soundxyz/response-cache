@@ -252,10 +252,12 @@ export function useResponseCache({
         },
       };
 
-      ctx.extendContext({
+      const partialCtx = {
         [contextSymbol]: context,
         ...publicContext,
-      });
+      };
+
+      ctx.extendContext(partialCtx);
 
       if (isMutation(ctx.args.document)) {
         if (invalidateViaMutation === false) {
@@ -354,20 +356,37 @@ export function useResponseCache({
             return;
           }
 
-          const result = await idempotentCall(operationId, async () => ctx.executeFn(ctx.args));
+          const result = await idempotentCall(operationId, async () => {
+            const newCtx = {
+              ...ctx.args.contextValue,
+              ...partialCtx,
+            };
+
+            return ctx.executeFn({
+              ...ctx.args,
+              contextValue: newCtx,
+            });
+          });
 
           if (isAsyncIterable(result)) {
             // eslint-disable-next-line no-console
             console.warn(
               "[useResponseCache] AsyncIterable returned from execute is currently unsupported."
             );
+
             return;
           }
 
-          if (context.skip) return;
+          if (context.skip) {
+            ctx.setResultAndStopExecution(result);
+
+            return;
+          }
 
           if (!shouldCacheResult({ result })) {
             cache.onSkipCache(operationId);
+
+            ctx.setResultAndStopExecution(result);
             return;
           }
 
@@ -387,7 +406,11 @@ export function useResponseCache({
                   },
                 },
               });
+
+              return;
             }
+
+            ctx.setResultAndStopExecution(result);
             return;
           }
 
