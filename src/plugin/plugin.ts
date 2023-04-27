@@ -194,7 +194,7 @@ export function useResponseCache({
 
   const enabledCachingDocuments = new WeakMap<DocumentNode, boolean>();
 
-  const idempotentPromises: Map<string, Promise<any> | null> = new Map();
+  const idempotentPromises: Map<string, Promise<any>> = new Map();
   function idempotentCall<T>(key: string, cb: () => Promise<T>): Promise<T> {
     const existingPromise = idempotentPromises.get(key);
 
