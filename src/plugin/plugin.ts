@@ -194,6 +194,19 @@ export function useResponseCache({
 
   const enabledCachingDocuments = new WeakMap<DocumentNode, boolean>();
 
+  const idempotentPromises: Map<string, Promise<any> | null> = new Map();
+  function idempotentCall<T>(key: string, cb: () => Promise<T>): Promise<T> {
+    const existingPromise = idempotentPromises.get(key);
+
+    if (existingPromise) return existingPromise;
+
+    const newPromise = cb().finally(() => idempotentPromises.delete(key));
+
+    idempotentPromises.set(key, newPromise);
+
+    return newPromise;
+  }
+
   return {
     onSchemaChange(ctx) {
       let schema = schemaCache.get(ctx.schema);
@@ -341,61 +354,61 @@ export function useResponseCache({
             return;
           }
 
-          return {
-            onExecuteDone({ result, setResult }) {
-              if (isAsyncIterable(result)) {
-                // eslint-disable-next-line no-console
-                console.warn(
-                  "[useResponseCache] AsyncIterable returned from execute is currently unsupported."
-                );
-                return;
-              }
+          const result = await idempotentCall(operationId, async () => ctx.executeFn(ctx.args));
 
-              if (context.skip) {
-                return;
-              }
+          if (isAsyncIterable(result)) {
+            // eslint-disable-next-line no-console
+            console.warn(
+              "[useResponseCache] AsyncIterable returned from execute is currently unsupported."
+            );
+            return;
+          }
 
-              if (!shouldCacheResult({ result })) {
-                cache.onSkipCache(operationId);
-                return;
-              }
+          if (context.skip) return;
 
-              // we only use the global ttl if no currentTtl has been determined.
-              const finalTtl = context.currentTtl ?? globalTtl;
+          if (!shouldCacheResult({ result })) {
+            cache.onSkipCache(operationId);
+            return;
+          }
 
-              if (finalTtl <= 0) {
-                cache.onSkipCache(operationId);
-                if (includeExtensionMetadata) {
-                  setResult({
-                    ...result,
-                    extensions: {
-                      ...result.extensions,
-                      responseCache: {
-                        hit: false,
-                        didCache: false,
-                      },
-                    },
-                  });
-                }
-                return;
-              }
+          // we only use the global ttl if no currentTtl has been determined.
+          const finalTtl = context.currentTtl ?? globalTtl;
 
-              cache.set(operationId, result, identifier.values(), finalTtl);
-              if (includeExtensionMetadata) {
-                setResult({
-                  ...result,
-                  extensions: {
-                    ...result.extensions,
-                    responseCache: {
-                      hit: false,
-                      didCache: true,
-                      ttl: finalTtl,
-                    },
+          if (finalTtl <= 0) {
+            cache.onSkipCache(operationId);
+            if (includeExtensionMetadata) {
+              ctx.setResultAndStopExecution({
+                ...result,
+                extensions: {
+                  ...result.extensions,
+                  responseCache: {
+                    hit: false,
+                    didCache: false,
                   },
-                });
-              }
-            },
-          };
+                },
+              });
+            }
+            return;
+          }
+
+          cache.set(operationId, result, identifier.values(), finalTtl);
+          if (includeExtensionMetadata) {
+            ctx.setResultAndStopExecution({
+              ...result,
+              extensions: {
+                ...result.extensions,
+                responseCache: {
+                  hit: false,
+                  didCache: true,
+                  ttl: finalTtl,
+                },
+              },
+            });
+
+            return;
+          }
+
+          ctx.setResultAndStopExecution(result);
         } else {
           // eslint-disable-next-line no-console
           console.warn(
