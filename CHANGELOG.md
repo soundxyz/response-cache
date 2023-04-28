@@ -1,5 +1,11 @@
 # @soundxyz/response-cache
 
+## 3.0.0
+
+### Major Changes
+
+- a4f8936: Aggressive idempotent concurrent identical cached requests
+
 ## 2.2.1
 
 ### Patch Changes
