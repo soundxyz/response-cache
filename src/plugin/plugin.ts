@@ -340,7 +340,7 @@ export function useResponseCache({
 
           if (cachedResponse != null) {
             if (includeExtensionMetadata) {
-              ctx.setResultAndStopExecution({
+              return ctx.setResultAndStopExecution({
                 ...cachedResponse,
                 extensions: {
                   ...cachedResponse.extensions,
@@ -350,21 +350,17 @@ export function useResponseCache({
                   },
                 },
               });
-            } else {
-              ctx.setResultAndStopExecution(cachedResponse);
             }
-            return;
+            return ctx.setResultAndStopExecution(cachedResponse);
           }
 
           const result = await idempotentCall(operationId, async () => {
-            const newCtx = {
-              ...ctx.args.contextValue,
-              ...partialCtx,
-            };
-
             return ctx.executeFn({
               ...ctx.args,
-              contextValue: newCtx,
+              contextValue: {
+                ...ctx.args.contextValue,
+                ...partialCtx,
+              },
             });
           });
 
@@ -378,16 +374,13 @@ export function useResponseCache({
           }
 
           if (context.skip) {
-            ctx.setResultAndStopExecution(result);
-
-            return;
+            return ctx.setResultAndStopExecution(result);
           }
 
           if (!shouldCacheResult({ result })) {
             cache.onSkipCache(operationId);
 
-            ctx.setResultAndStopExecution(result);
-            return;
+            return ctx.setResultAndStopExecution(result);
           }
 
           // we only use the global ttl if no currentTtl has been determined.
@@ -396,7 +389,7 @@ export function useResponseCache({
           if (finalTtl <= 0) {
             cache.onSkipCache(operationId);
             if (includeExtensionMetadata) {
-              ctx.setResultAndStopExecution({
+              return ctx.setResultAndStopExecution({
                 ...result,
                 extensions: {
                   ...result.extensions,
@@ -406,17 +399,14 @@ export function useResponseCache({
                   },
                 },
               });
-
-              return;
             }
 
-            ctx.setResultAndStopExecution(result);
-            return;
+            return ctx.setResultAndStopExecution(result);
           }
 
           cache.set(operationId, result, identifier.values(), finalTtl);
           if (includeExtensionMetadata) {
-            ctx.setResultAndStopExecution({
+            return ctx.setResultAndStopExecution({
               ...result,
               extensions: {
                 ...result.extensions,
@@ -427,18 +417,16 @@ export function useResponseCache({
                 },
               },
             });
-
-            return;
           }
 
-          ctx.setResultAndStopExecution(result);
+          return ctx.setResultAndStopExecution(result);
         } else {
           // eslint-disable-next-line no-console
           console.warn(
             `[useResponseCache] Failed extracting document string from the context. The response will not be cached or served from the cache. ` +
               `If you are overriding the 'parse' behavior make sure to pass a custom 'getDocumentStringFromContext' function for getting the document string, which is required for building the response cache key.`
           );
-          return undefined;
+          return;
         }
       }
     },
