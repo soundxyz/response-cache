@@ -194,6 +194,19 @@ export function useResponseCache({
 
   const enabledCachingDocuments = new WeakMap<DocumentNode, boolean>();
 
+  const idempotentPromises: Map<string, Promise<any>> = new Map();
+  function idempotentCall<T>(key: string, cb: () => Promise<T>): Promise<T> {
+    const existingPromise = idempotentPromises.get(key);
+
+    if (existingPromise) return existingPromise;
+
+    const newPromise = cb().finally(() => idempotentPromises.delete(key));
+
+    idempotentPromises.set(key, newPromise);
+
+    return newPromise;
+  }
+
   return {
     onSchemaChange(ctx) {
       let schema = schemaCache.get(ctx.schema);
@@ -239,10 +252,12 @@ export function useResponseCache({
         },
       };
 
-      ctx.extendContext({
+      const partialCtx = {
         [contextSymbol]: context,
         ...publicContext,
-      });
+      };
+
+      ctx.extendContext(partialCtx);
 
       if (isMutation(ctx.args.document)) {
         if (invalidateViaMutation === false) {
@@ -325,7 +340,7 @@ export function useResponseCache({
 
           if (cachedResponse != null) {
             if (includeExtensionMetadata) {
-              ctx.setResultAndStopExecution({
+              return ctx.setResultAndStopExecution({
                 ...cachedResponse,
                 extensions: {
                   ...cachedResponse.extensions,
@@ -335,74 +350,83 @@ export function useResponseCache({
                   },
                 },
               });
-            } else {
-              ctx.setResultAndStopExecution(cachedResponse);
             }
+            return ctx.setResultAndStopExecution(cachedResponse);
+          }
+
+          const result = await idempotentCall(operationId, async () => {
+            return ctx.executeFn({
+              ...ctx.args,
+              contextValue: {
+                ...ctx.args.contextValue,
+                ...partialCtx,
+              },
+            });
+          });
+
+          if (isAsyncIterable(result)) {
+            // eslint-disable-next-line no-console
+            console.warn(
+              "[useResponseCache] AsyncIterable returned from execute is currently unsupported."
+            );
+
             return;
           }
 
-          return {
-            onExecuteDone({ result, setResult }) {
-              if (isAsyncIterable(result)) {
-                // eslint-disable-next-line no-console
-                console.warn(
-                  "[useResponseCache] AsyncIterable returned from execute is currently unsupported."
-                );
-                return;
-              }
+          if (context.skip) {
+            return ctx.setResultAndStopExecution(result);
+          }
 
-              if (context.skip) {
-                return;
-              }
+          if (!shouldCacheResult({ result })) {
+            cache.onSkipCache(operationId);
 
-              if (!shouldCacheResult({ result })) {
-                cache.onSkipCache(operationId);
-                return;
-              }
+            return ctx.setResultAndStopExecution(result);
+          }
 
-              // we only use the global ttl if no currentTtl has been determined.
-              const finalTtl = context.currentTtl ?? globalTtl;
+          // we only use the global ttl if no currentTtl has been determined.
+          const finalTtl = context.currentTtl ?? globalTtl;
 
-              if (finalTtl <= 0) {
-                cache.onSkipCache(operationId);
-                if (includeExtensionMetadata) {
-                  setResult({
-                    ...result,
-                    extensions: {
-                      ...result.extensions,
-                      responseCache: {
-                        hit: false,
-                        didCache: false,
-                      },
-                    },
-                  });
-                }
-                return;
-              }
-
-              cache.set(operationId, result, identifier.values(), finalTtl);
-              if (includeExtensionMetadata) {
-                setResult({
-                  ...result,
-                  extensions: {
-                    ...result.extensions,
-                    responseCache: {
-                      hit: false,
-                      didCache: true,
-                      ttl: finalTtl,
-                    },
+          if (finalTtl <= 0) {
+            cache.onSkipCache(operationId);
+            if (includeExtensionMetadata) {
+              return ctx.setResultAndStopExecution({
+                ...result,
+                extensions: {
+                  ...result.extensions,
+                  responseCache: {
+                    hit: false,
+                    didCache: false,
                   },
-                });
-              }
-            },
-          };
+                },
+              });
+            }
+
+            return ctx.setResultAndStopExecution(result);
+          }
+
+          cache.set(operationId, result, identifier.values(), finalTtl);
+          if (includeExtensionMetadata) {
+            return ctx.setResultAndStopExecution({
+              ...result,
+              extensions: {
+                ...result.extensions,
+                responseCache: {
+                  hit: false,
+                  didCache: true,
+                  ttl: finalTtl,
+                },
+              },
+            });
+          }
+
+          return ctx.setResultAndStopExecution(result);
         } else {
           // eslint-disable-next-line no-console
           console.warn(
             `[useResponseCache] Failed extracting document string from the context. The response will not be cached or served from the cache. ` +
               `If you are overriding the 'parse' behavior make sure to pass a custom 'getDocumentStringFromContext' function for getting the document string, which is required for building the response cache key.`
           );
-          return undefined;
+          return;
         }
       }
     },
