@@ -200,9 +200,13 @@ export function useResponseCache({
 
     if (existingPromise) return existingPromise;
 
-    const newPromise = cb().finally(() => idempotentPromises.delete(key));
+    const newPromise = cb();
 
     idempotentPromises.set(key, newPromise);
+
+    setTimeout(() => {
+      idempotentPromises.delete(key);
+    });
 
     return newPromise;
   }
