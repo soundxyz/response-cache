@@ -21,7 +21,7 @@ export const Events = {
   REDLOCK_GET_AFTER_ACQUIRE: "REDLOCK_GET_AFTER_ACQUIRE",
 } as const;
 
-export type Events = typeof Events[keyof typeof Events];
+export type Events = (typeof Events)[keyof typeof Events];
 
 export type LogEventArgs = { message: string; code: Events; params: EventParamsObject };
 
@@ -501,8 +501,6 @@ export const createRedisCache = ({
 
       if (!entitiesToRemoveList.length) return;
 
-      const invalidationKeys: string[] = [];
-
       const tracing = enabledLogEvents?.INVALIDATED_KEYS ? getTracing() : null;
 
       const invalidationEntitiesKey = entitiesToRemoveList.map(({ id, typename }) =>
@@ -511,20 +509,22 @@ export const createRedisCache = ({
 
       const chunksInvalidationEntities = chunk(invalidationEntitiesKey, concurrencyLimit);
 
-      for (const chunk of chunksInvalidationEntities) {
+      let invalidationKeysSize = 0;
+
+      for (const invalidationEntities of chunksInvalidationEntities) {
         await Promise.all(
-          chunk.map(async (key) => {
-            invalidationKeys.push(...(await buildEntityInvalidationsKeys(key)));
+          invalidationEntities.map(async (key) => {
+            const keys = await buildEntityInvalidationsKeys(key);
+
+            const chunkedKeys = chunk(keys, concurrencyLimit);
+
+            for (const invalidationChunk of chunkedKeys) {
+              invalidationKeysSize += invalidationChunk.length;
+
+              await store.del(invalidationChunk).catch(gracefullyFail);
+            }
           })
         );
-      }
-
-      if (invalidationKeys.length > 0) {
-        const invalidationKeysChunks = chunk(invalidationKeys, concurrencyLimit);
-
-        for (const chunk of invalidationKeysChunks) {
-          await store.del(chunk).catch(gracefullyFail);
-        }
       }
 
       if (tracing) {
@@ -532,7 +532,7 @@ export const createRedisCache = ({
           invalidatedEntitiesKeys: entitiesToRemoveList
             .map((v) => (v.id != null ? (v.typename = ":" + v.id) : v.typename))
             .join(","),
-          invalidatedKeys: invalidationKeys.join(",") || "null",
+          invalidationKeysSize,
           time: tracing(),
         });
       }
