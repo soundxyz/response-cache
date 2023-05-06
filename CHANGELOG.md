@@ -1,5 +1,12 @@
 # @soundxyz/response-cache
 
+## 3.0.1
+
+### Patch Changes
+
+- d4fa4c0: Clear idempotent promise on next loop cycle
+- 576e355: Improve invalidation chunking
+
 ## 3.0.0
 
 ### Major Changes
