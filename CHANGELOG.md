@@ -1,5 +1,11 @@
 # @soundxyz/response-cache
 
+## 3.0.2
+
+### Patch Changes
+
+- e88ea18: Keep ttlPerSchemaCoordinate object reference
+
 ## 3.0.1
 
 ### Patch Changes
