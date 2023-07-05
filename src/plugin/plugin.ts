@@ -190,7 +190,7 @@ export function useResponseCache({
   const schemaCache = new WeakMap<GraphQLSchema, GraphQLSchema>();
 
   // never cache Introspections
-  ttlPerSchemaCoordinate = { "Query.__schema": 0, ...ttlPerSchemaCoordinate };
+  ttlPerSchemaCoordinate["Query.__schema"] ??= 0;
 
   const enabledCachingDocuments = new WeakMap<DocumentNode, boolean>();
 
