@@ -39,7 +39,7 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@graphql-tools/utils": "^9.1.4",
+    "@graphql-tools/utils": "^9.2.1",
     "fast-json-stable-stringify": "^2.1.0"
   },
   "devDependencies": {
@@ -49,7 +49,7 @@
     "@envelop/types": "^3.0.1",
     "@graphql-ez/fastify": "^0.12.0",
     "@graphql-ez/fastify-testing": "^0.4.0",
-    "@graphql-tools/schema": "^9.0.13",
+    "@graphql-tools/schema": "^9.0.19",
     "@types/node": "^18.11.18",
     "bob-ts": "^4.1.1",
     "c8": "^7.12.0",
