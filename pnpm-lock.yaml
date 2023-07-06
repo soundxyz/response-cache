@@ -1,5 +1,9 @@
 lockfileVersion: '6.0'
 
+settings:
+  autoInstallPeers: true
+  excludeLinksFromLockfile: false
+
 patchedDependencies:
   graphql@16.6.0:
     hash: ynbmvwptchgomanf6mirycmz4u
@@ -40,7 +44,7 @@ devDependencies:
     version: 18.11.18
   bob-ts:
     specifier: ^4.1.1
-    version: 4.1.1(@types/node@18.11.18)(esbuild@0.16.17)(typescript@4.9.4)
+    version: 4.1.1(@types/node@18.11.18)(esbuild@0.16.17)(typescript@4.9.5)
   c8:
     specifier: ^7.12.0
     version: 7.12.0
@@ -72,8 +76,8 @@ devDependencies:
     specifier: 5.0.0-beta.2
     version: 5.0.0-beta.2
   typescript:
-    specifier: ^4.9.4
-    version: 4.9.4
+    specifier: ^4.9.5
+    version: 4.9.5
   vite:
     specifier: ^4.0.4
     version: 4.0.4(@types/node@18.11.18)
@@ -949,7 +953,7 @@ packages:
       rollup: 2.79.1
     dev: true
 
-  /bob-ts@4.1.1(@types/node@18.11.18)(esbuild@0.16.17)(typescript@4.9.4):
+  /bob-ts@4.1.1(@types/node@18.11.18)(esbuild@0.16.17)(typescript@4.9.5):
     resolution: {integrity: sha512-lXvGGP46GSU10LMHB27Kq2PZl+DaK1L5geHxxzLw/QklEWnvfzLPJsH9YGvV9F4AdIGJp85FTC1xIfanwd3NbQ==}
     engines: {node: '>=14.13.1'}
     hasBin: true
@@ -967,7 +971,7 @@ packages:
       bob-esbuild-plugin: 4.0.0(esbuild@0.16.17)(rollup@2.79.1)
       esbuild: 0.16.17
       rollup: 2.79.1
-      typescript: 4.9.4
+      typescript: 4.9.5
     dev: true
 
   /brace-expansion@1.1.11:
@@ -3187,8 +3191,8 @@ packages:
       is-typed-array: 1.1.10
     dev: true
 
-  /typescript@4.9.4:
-    resolution: {integrity: sha512-Uz+dTXYzxXXbsFpM86Wh3dKCxrQqUcVMxwU54orwlJjOpO3ao8L7j5lH+dWfTwgCwIuM9GQ2kvVotzYJMXTBZg==}
+  /typescript@4.9.5:
+    resolution: {integrity: sha512-1FXk9E2Hm+QzZQ7z+McJiHL4NW1F2EzMu9Nq9i3zAaGqibafqYwCVU6WyWAuyQRRzOlxou8xZSyXLEN8oKj24g==}
     engines: {node: '>=4.2.0'}
     hasBin: true
     dev: true
