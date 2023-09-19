@@ -1,5 +1,9 @@
 lockfileVersion: '6.0'
 
+settings:
+  autoInstallPeers: true
+  excludeLinksFromLockfile: false
+
 patchedDependencies:
   graphql@16.6.0:
     hash: ynbmvwptchgomanf6mirycmz4u
