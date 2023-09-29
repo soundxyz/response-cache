@@ -64,7 +64,7 @@
     "redlock": "5.0.0-beta.2",
     "typescript": "^4.9.4",
     "vite": "^4.0.4",
-    "vitest": "^0.27.1"
+    "vitest": "^0.34.6"
   },
   "peerDependencies": {
     "@envelop/core": "*",
