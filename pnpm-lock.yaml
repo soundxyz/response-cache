@@ -1,5 +1,9 @@
 lockfileVersion: '6.0'
 
+settings:
+  autoInstallPeers: true
+  excludeLinksFromLockfile: false
+
 patchedDependencies:
   graphql@16.6.0:
     hash: ynbmvwptchgomanf6mirycmz4u
@@ -42,8 +46,8 @@ devDependencies:
     specifier: ^4.1.1
     version: 4.1.1(@types/node@18.11.18)(esbuild@0.16.17)(typescript@4.9.4)
   c8:
-    specifier: ^7.12.0
-    version: 7.12.0
+    specifier: ^7.14.0
+    version: 7.14.0
   esbuild:
     specifier: ^0.16.17
     version: 0.16.17
@@ -1012,8 +1016,8 @@ packages:
       streamsearch: 1.1.0
     dev: true
 
-  /c8@7.12.0:
-    resolution: {integrity: sha512-CtgQrHOkyxr5koX1wEUmN/5cfDa2ckbHRA4Gy5LAL0zaCFtVWJS5++n+w4/sr2GWGerBxgTjpKeDclk/Qk6W/A==}
+  /c8@7.14.0:
+    resolution: {integrity: sha512-i04rtkkcNcCf7zsQcSv/T9EbUn4RXQ6mropeMcjFOsQXQ0iGLAr/xT6TImQg4+U9hmNpN9XdvPkjUL1IzbgxJw==}
     engines: {node: '>=10.12.0'}
     hasBin: true
     dependencies:
